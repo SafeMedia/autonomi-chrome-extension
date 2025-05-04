@@ -29,3 +29,9 @@ Ensure that you are serving your test application either on a website, or as loc
 Currently download and uploading is working via the extension. Another feature that is currently in development is the ability to type 'ant' into the address bar, hit tab and then enter your xorname to download and view the file.
 
 ![Omni Feature](https://github.com/SafeMedia/images/blob/main/impossible_futures/safebox/safebox-omni.png)
+
+You can test the features of the extension with the safebox example webpage here: [Visit Repo](https://github.com/SafeMedia/safebox-example-webpage)
+
+![SafeBox Example Webpage](https://github.com/SafeMedia/images/blob/main/impossible_futures/safebox/safebox_gif.gif)
+
+You can get the SafeBox local client here: [Visit Repo](https://github.com/SafeMedia/safebox-client)
