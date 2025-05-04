@@ -1,0 +1,48 @@
+{
+    "manifest_version": 3,
+    "name": "Autonomi Extension",
+    "version": "0.1.0",
+    "description": "The Autonomi Extension",
+    "icons": {
+        "256": "images/icon-256.png"
+      },
+      "action": {
+        "default_popup": "index.html"
+      },
+      "permissions": [
+         "scripting",
+         "downloads",
+         "tabs",
+         "activeTab",
+         "webRequest",
+         "webNavigation",
+         "storage",
+         "windows",
+         "nativeMessaging"
+      ],
+      "omnibox": { "keyword": "ant" },
+      "background": {
+        "service_worker": "background.js"
+      },
+      "host_permissions": [
+        "http://*/*",
+        "https://*/*",
+        "http://localhost:3002/*",
+        "http://localhost:5173/*",
+        "http://localhost:1420/*",
+         "ws://localhost:1420/*"
+      ],
+      "externally_connectable": {
+        "matches": [
+          "http://localhost:*/*",
+          "https://*/*",
+          "http://*/*",
+          "*://localhost:*/*",
+          "http://localhost:5172/*",
+          "http://localhost:3002/*"]
+      },
+      "web_accessible_resources": [
+        
+    ]
+  }
+  
