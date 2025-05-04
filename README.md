@@ -25,3 +25,7 @@ You can find this ID on the extensions page just underneath the name of the exte
 Once you generated a new extension build you can reload the extension by clicking the reload button on the extensions page.
 
 Ensure that you are serving your test application either on a website, or as localhost via an engine like 'npx serve'. This is because just right clicking and opening a html page in a browser will not work for this due to stricter cors restrictions by chrome.
+
+Currently download and uploading is working via the extension. Another feature that is currently in development is the ability to type 'ant' into the address bar, hit tab and then enter your xorname to download and view the file.
+
+![Omni Feature](https://github.com/SafeMedia/images/blob/main/impossible_futures/safebox/safebox-omni.png)
