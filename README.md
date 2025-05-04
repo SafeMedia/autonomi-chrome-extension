@@ -1,6 +1,6 @@
 # Autonomi Chrome Extension
 
-![Autonomi Chrome Extension 1](https://raw.githubusercontent.com/SafeMedia/images/refs/heads/main/impossible_futures/safebox-media-1.png)
+![Autonomi Chrome Extension Page](https://github.com/SafeMedia/images/blob/main/impossible_futures/autonomi-extension-page.png)
 
 This extension will be published on the store once development is complete. Until then you can use it in beta by following these instructions.
 
@@ -17,8 +17,6 @@ You can now go to your extensions page in your chromium browser. (chrome, brave 
 From here you need to enable developer mode. Then you can click the 'load unpacked' button to select your dist folder.
 
 This will load your extension into your browser.
-
-![Autonomi Chrome Extension Page](https://github.com/SafeMedia/images/blob/main/impossible_futures/autonomi-extension-page.png)
 
 In your test web application that will interface with the extension, ensure the extension ID matches the one shown on the extension page.
 
