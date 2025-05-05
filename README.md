@@ -35,3 +35,7 @@ You can test the features of the extension with the safebox example webpage here
 ![SafeBox Example Webpage](https://github.com/SafeMedia/images/blob/main/impossible_futures/safebox/safebox_gif.gif)
 
 You can get the SafeBox local client here: [Visit Repo](https://github.com/SafeMedia/safebox-client)
+
+### Contribute
+
+Make/find an issue & create a PR - All contributions appreciated!
