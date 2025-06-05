@@ -32,7 +32,8 @@ Features
 
 ![Omni Feature](https://github.com/SafeMedia/images/blob/main/impossible_futures/safebox/safebox-omni.png)
 
-(You can ignore this step as I removed support for this for the moment. It will be added again soon)
+(You can ignore this section as I removed support for this for the moment. It will be added again soon)
+
 In your test web application which will interface with the extension, ensure the extension ID matches the one shown on the extension page.
 
 You can find this ID on the extensions page just underneath the name of the extension itself.
@@ -40,13 +41,7 @@ You can find this ID on the extensions page just underneath the name of the exte
 Ensure that you are serving your test application either on a website, or as localhost via an engine like 'npx serve'. This is because just right clicking and opening a html page in a browser will not work for this due to stricter cors restrictions by chrome.
 
 
-You can test the features of the extension with the safebox example webpage here: [Visit Repo](https://github.com/SafeMedia/safebox-example-webpage)
 
-(Not currently supporting - new version soon)
-![SafeBox Example Webpage](https://github.com/SafeMedia/images/blob/main/impossible_futures/safebox/safebox_gif.gif)
-
-(Not currently supporting - new version soon)
-You can get the SafeBox local client here: [Visit Repo](https://github.com/SafeMedia/safebox-client)
 
 ### Contribute
 
