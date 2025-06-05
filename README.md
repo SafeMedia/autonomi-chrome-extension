@@ -7,9 +7,9 @@ Currently while the new local client is in development, the extension is using a
 
 To install it you must go here and download anttp: https://github.com/traktion/AntTP/releases/tag/v0.6.2
 
-Then run the file to start anttp in the background.
+Then run the file to start anttp in the background. You don't need to do any proxy stuff.
 
-Be sure to install the npm packages for the extension development testing:
+Then be sure to install the npm packages for the extension development testing:
 
 
 ```bash
