@@ -48,6 +48,17 @@ Features
 
 ![Omni Feature](https://github.com/SafeMedia/images/blob/main/impossible_futures/safebox/safebox-omni.png)
 
+If you want to try out some files:
+
+image: 91d16e58e9164bccd29a8fd8d25218a61d8253b51c26119791b2633ff4f6b309/start-a-node.png
+
+video: 91d16e58e9164bccd29a8fd8d25218a61d8253b51c26119791b2633ff4f6b309/to-autonomi.mp4
+
+pdf: 7c75c7d71a9ae9d6016901b849672bf908358e704111f68cac681d003446f603
+
+audio: a0f6fa2b08e868060fe6e57018e3f73294821feaf3fdcf9cd636ac3d11e7e2ac/BegBlag.mp3
+
+
 (You can ignore this section as I removed support for this for the moment. It will be added again soon)
 
 In your test web application which will interface with the extension, ensure the extension ID matches the one shown on the extension page.
