@@ -3,7 +3,7 @@
 ![Autonomi Chrome Extension Page](https://github.com/SafeMedia/images/blob/main/impossible_futures/autonomi-extension-page.png)
 
 
-Currently while the new local client is in development, the extension is using a standalone anttp.
+Currently while the new local client is in development, the extension is using anttp native.
 
 To install it you much go here and download anttp: https://github.com/traktion/AntTP/releases/tag/v0.6.2
 
