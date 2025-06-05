@@ -3,34 +3,45 @@
     "name": "Autonomi Extension",
     "version": "0.1.0",
     "description": "The Autonomi Extension",
-    "icons": {
-        "256": "images/icon-256.png"
-      },
       "action": {
         "default_popup": "index.html"
       },
+       "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
       "permissions": [
          "scripting",
          "downloads",
          "tabs",
+         "proxy",
          "activeTab",
          "webRequest",
          "webNavigation",
          "storage",
          "windows",
-         "nativeMessaging"
+         "nativeMessaging",
+         "notifications"
       ],
       "omnibox": { "keyword": "ant" },
       "background": {
         "service_worker": "background.js"
       },
+        "icons": {
+    "16": "images/icon-16.png",
+    "32": "images/icon-32.png",
+    "48": "images/icon-48.png",
+    "128": "images/icon-128.png",
+      "256": "images/icon-256.png"
+  },
       "host_permissions": [
         "http://*/*",
         "https://*/*",
         "http://localhost:3002/*",
         "http://localhost:5173/*",
         "http://localhost:1420/*",
-         "ws://localhost:1420/*"
+          "http://127.0.0.1/*",
+        "ws://localhost:1420/*",
+        "<all_urls>"
       ],
       "externally_connectable": {
         "matches": [
@@ -41,8 +52,11 @@
           "http://localhost:5172/*",
           "http://localhost:3002/*"]
       },
-      "web_accessible_resources": [
-        
-    ]
+     "web_accessible_resources": [
+    {
+      "resources": ["feedback.html", "feedback.js", "browser.html", "src/viewers/image.tsx", "src/viewers/video.tsx", "src/viewers/audio.tsx",  "src/viewers/document.tsx"],
+      "matches": ["<all_urls>"]
+    }
+  ]
   }
   

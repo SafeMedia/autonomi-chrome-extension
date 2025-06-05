@@ -106,6 +106,10 @@
 
 
 body {
-    min-width: 320px;
+    min-width: 300px;
     min-height: 100vh;
   }
+
+  .spinner {
+  @apply border-8 border-gray-200 border-t-blue-500 rounded-full w-12 h-12 animate-spin;
+}
