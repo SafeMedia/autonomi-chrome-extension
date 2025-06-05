@@ -2,7 +2,12 @@
 
 ![Autonomi Chrome Extension Page](https://github.com/SafeMedia/images/blob/main/impossible_futures/autonomi-extension-page.png)
 
-This extension will be published on the store once development is complete. Until then you can use it in beta by following these instructions.
+
+Currently while the new local client is in development, the extension is using a standalone anttp.
+
+To install it you much go here and download the latest anttp: https://github.com/traktion/AntTP/releases/tag/v0.6.2
+
+Then run the file to start anttp in the background.
 
 To build your extension for testing, run:
 
