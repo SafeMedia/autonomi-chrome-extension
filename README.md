@@ -5,7 +5,7 @@
 
 Currently while the new local client is in development, the extension is using a standalone anttp.
 
-To install it you much go here and download the latest anttp: https://github.com/traktion/AntTP/releases/tag/v0.6.2
+To install it you much go here and download anttp: https://github.com/traktion/AntTP/releases/tag/v0.6.2
 
 Then run the file to start anttp in the background.
 
