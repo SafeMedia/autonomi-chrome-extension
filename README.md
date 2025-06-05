@@ -9,7 +9,18 @@ To install it you much go here and download anttp: https://github.com/traktion/A
 
 Then run the file to start anttp in the background.
 
-To build your extension for testing, run:
+Be sure to install the npm packages for the extension development testing:
+
+
+```bash
+yarn install
+```
+or
+```bash
+npm install
+```
+
+To build the extension for testing, run:
 
 ```bash
 yarn run build
