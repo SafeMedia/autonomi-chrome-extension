@@ -9,7 +9,9 @@ To install it you must go here and download anttp: https://github.com/traktion/A
 
 Then run the file to start anttp in the background. You don't need to do any proxy stuff.
 
-Then be sure to install the npm packages for the extension development testing:
+Then download this extension code, you can do so by either cloning, or clicking the green button above and 'download zip'
+
+Then be sure to install the npm packages for the extension development testing (you need npm/yarn installed on your pc):
 
 
 ```bash
