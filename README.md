@@ -1,7 +1,12 @@
 # Autonomi Chrome Extension
 
-![Autonomi Chrome Extension Page](https://github.com/SafeMedia/images/blob/main/impossible_futures/autonomi-extension-page.png)
+<img src="https://github.com/user-attachments/assets/13cee998-15f9-4cb8-a8de-4050b5c6defb" width="200">
+<img src="https://github.com/user-attachments/assets/bc392e0f-418b-4739-ac86-2348c48875c3" width="200">
+<img src="https://github.com/user-attachments/assets/2e90de36-5e0d-4663-9802-3a2c9a0222b5" width="200">
+<img src="https://github.com/user-attachments/assets/975e13c7-6589-4f3e-81b3-6303f8b05f32" width="200">
+<img src="https://github.com/user-attachments/assets/4844ad36-8a1e-40a0-8aec-a72a0ece65ea" width="600">
 
+<img src="https://github.com/SafeMedia/images/blob/main/impossible_futures/autonomi-extension-page.png" width="600">
 
 To download this extension code, you can do so by either cloning, or clicking the green button above and 'download zip'
 
