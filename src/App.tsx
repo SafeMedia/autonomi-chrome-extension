@@ -57,34 +57,32 @@ function App() {
                 if (res[LOCAL_PORT_KEY]) {
                     setLocalPort(String(res[LOCAL_PORT_KEY]));
                 } else {
-                    setLocalPort("8080");
+                    setLocalPort("8081");
                 }
             }
         );
 
         // Listener for future changes
-        function handleStorageChange(changes: any, areaName: any) {
-            if (areaName === "local") {
-                if (changes[STORAGE_KEY]) {
-                    const newValue = changes[STORAGE_KEY].newValue;
-                    setSelectedOption(
-                        newValue === "endpoints" || newValue === "local"
-                            ? newValue
-                            : "local"
-                    );
-                }
+        function handleStorageChange(changes: any) {
+            if (changes[STORAGE_KEY]) {
+                const newValue = changes[STORAGE_KEY].newValue;
+                setSelectedOption(
+                    newValue === "endpoints" || newValue === "local"
+                        ? newValue
+                        : "local"
+                );
+            }
 
-                if (changes[URLS_KEY]) {
-                    const newUrls = changes[URLS_KEY].newValue;
-                    if (Array.isArray(newUrls)) {
-                        setUrls(newUrls);
-                    }
+            if (changes[URLS_KEY]) {
+                const newUrls = changes[URLS_KEY].newValue;
+                if (Array.isArray(newUrls)) {
+                    setUrls(newUrls);
                 }
+            }
 
-                if (changes[LOCAL_PORT_KEY]) {
-                    const newPort = changes[LOCAL_PORT_KEY].newValue;
-                    setLocalPort(newPort ? String(newPort) : "8080");
-                }
+            if (changes[LOCAL_PORT_KEY]) {
+                const newPort = changes[LOCAL_PORT_KEY].newValue;
+                setLocalPort(newPort ? String(newPort) : "8081");
             }
         }
 
@@ -102,7 +100,7 @@ function App() {
     const handleOpenNative = () => {
         toast.error(selectedOption);
         if (selectedOption === "local") {
-            const port = localPort.trim() === "" ? "8080" : localPort.trim();
+            const port = localPort.trim() === "" ? "8081" : localPort.trim();
             const path = nativeAddress.trim().replace(/^\/+/, "");
             const trimmed = path.trim();
 

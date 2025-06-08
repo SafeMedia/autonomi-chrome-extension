@@ -58,7 +58,7 @@ export default function SettingsView({ onBack }: { onBack: () => void }) {
                 if (res[LOCAL_PORT_KEY]) {
                     setLocalPort(String(res[LOCAL_PORT_KEY]));
                 } else {
-                    setLocalPort("8080");
+                    setLocalPort("8081");
                 }
 
                 // Show info toast about drag functionality if not already acknowledged
@@ -127,7 +127,7 @@ export default function SettingsView({ onBack }: { onBack: () => void }) {
         const value = e.target.value;
         if (!/^\d*$/.test(value)) return; // Digits only
         setLocalPort(value);
-        const portNum = Number(value || "8080"); // Default to 8080 if empty
+        const portNum = Number(value || "8081"); // Default to 8081 if empty
         if (portNum >= 1 && portNum <= 65535) {
             chrome.storage.local.set({ [LOCAL_PORT_KEY]: portNum });
         }
@@ -225,7 +225,7 @@ export default function SettingsView({ onBack }: { onBack: () => void }) {
                 ) : (
                     <>
                         <Input
-                            placeholder="Enter local port (default 8080)"
+                            placeholder="Enter local port (default 8081)"
                             value={localPort}
                             onChange={handleLocalPortChange}
                         />
@@ -234,7 +234,7 @@ export default function SettingsView({ onBack }: { onBack: () => void }) {
                             onClick={async () => {
                                 const port =
                                     localPort.trim() === ""
-                                        ? "8080"
+                                        ? "8081"
                                         : localPort.trim();
                                 const testUrl = `http://localhost:${port}/`; // Adjust if endpoint changes
 
