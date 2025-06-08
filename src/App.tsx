@@ -26,10 +26,10 @@ const LOCAL_PORT_KEY = "localPort";
 
 function App() {
     const [view, setView] = useState<"main" | "settings" | "upload">("main");
-    const [localPort, setLocalPort] = useState("");
+    const [_localPort, setLocalPort] = useState("");
     const [nativeAddress, setNativeAddress] = useState("");
     const [selectedOption, setSelectedOption] = useState("");
-    const [urls, setUrls] = useState<string[]>([]); // endpoint urls use is mode is endpoints
+    const [_urls, setUrls] = useState<string[]>([]); // endpoint urls use is mode is endpoints
 
     const isValidXorname = (input: string) => {
         const regex = /^[a-f0-9]{64}(\/[\w\-._~:@!$&'()*+,;=]+)*$/i;
@@ -97,10 +97,42 @@ function App() {
         window.open(`${type}.html`, "_blank");
     };
 
-    const handleOpenNative = () => {
-        toast.error(selectedOption);
+    async function getBestRemoteEndpoint(): Promise<string | null> {
+        return new Promise((resolve) => {
+            chrome.storage.local.get(["endpointUrls"], async (result) => {
+                const urls = result.endpointUrls as string[] | undefined;
+                if (!urls || urls.length === 0) {
+                    resolve(null);
+                    return;
+                }
+
+                for (const url of urls) {
+                    try {
+                        // Try fetching a health check or HEAD on root (faster)
+                        const response = await fetch(`${url}/`, {
+                            method: "HEAD",
+                            mode: "cors",
+                        });
+
+                        if (response.ok) {
+                            resolve(url);
+                            return;
+                        }
+                    } catch (e) {
+                        // console.warn(`Failed to connect to ${url}:`, e);
+                        continue;
+                    }
+                }
+
+                // None worked
+                resolve(null);
+            });
+        });
+    }
+
+    const handleOpenNative = async () => {
         if (selectedOption === "local") {
-            const port = localPort.trim() === "" ? "8081" : localPort.trim();
+            const port = "8080";
             const path = nativeAddress.trim().replace(/^\/+/, "");
             const trimmed = path.trim();
 
@@ -108,11 +140,42 @@ function App() {
                 toast.error("Invalid Autonomi address");
                 return;
             }
+
             const url = `http://localhost:${port}/${trimmed}`;
             window.open(url, "_blank");
         } else {
-            toast.error("Only local mode currently supported.");
-            console.log(urls); // endpoint server urls ordered by priority
+            const path = nativeAddress.trim().replace(/^\/+/, "");
+            const trimmed = path.trim();
+
+            if (!isValidXorname(trimmed)) {
+                toast.error("Invalid Autonomi address");
+                return;
+            }
+
+            const remoteEndpoint = await getBestRemoteEndpoint();
+
+            if (!remoteEndpoint) {
+                toast.error("No available endpoint URLs");
+                return;
+            }
+
+            try {
+                const response = await fetch(`${remoteEndpoint}/${trimmed}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const blob = await response.blob();
+                const objectUrl = URL.createObjectURL(blob);
+
+                window.open(objectUrl, "_blank");
+
+                // Optional: clean up later
+                setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+            } catch (error: any) {
+                toast.error("Failed to load file from remote endpoint");
+                console.error(error);
+            }
         }
     };
 
