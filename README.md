@@ -3,13 +3,7 @@
 ![Autonomi Chrome Extension Page](https://github.com/SafeMedia/images/blob/main/impossible_futures/autonomi-extension-page.png)
 
 
-Currently while the new local client is in development, the extension is using anttp native.
-
-To install it you must go here and download anttp: https://github.com/traktion/AntTP/releases/tag/v0.6.2
-
-Then run the file to start anttp in the background. You don't need to do any proxy stuff.
-
-Then download this extension code, you can do so by either cloning, or clicking the green button above and 'download zip'
+To download this extension code, you can do so by either cloning, or clicking the green button above and 'download zip'
 
 Then be sure to install the npm packages for the extension development testing (you need npm/yarn installed on your pc):
 
@@ -49,6 +43,11 @@ Features
 - Native file view
 
 ![Omni Feature](https://github.com/SafeMedia/images/blob/main/impossible_futures/safebox/safebox-omni.png)
+
+To run a local client you can download:
+https://github.com/SafeMedia/anttp-ws-local
+
+You only need to run a local client if you don't know someone or somewhere you can get a public endpoint URL to enter in your extensions settings page.
 
 If you want to try out some files:
 
