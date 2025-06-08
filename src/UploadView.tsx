@@ -19,11 +19,9 @@ export default function UploadView({ onBack }: { onBack: () => void }) {
 
     useEffect(() => {
         chrome.storage.local.get([STORAGE_KEY], (res) => {
-            if (
-                res[STORAGE_KEY] === "local" ||
-                res[STORAGE_KEY] === "endpoints"
-            ) {
-                setMode(res[STORAGE_KEY]);
+            const connection = res[STORAGE_KEY];
+            if (connection === "local" || connection === "endpoints") {
+                setMode(connection);
             }
         });
     }, []);
@@ -38,31 +36,34 @@ export default function UploadView({ onBack }: { onBack: () => void }) {
 
     const handleUpload = async () => {
         if (!file) return;
+
         if (!chrome?.runtime?.sendMessage) {
-            toast.error("Chrome messaging API is not available.");
+            toast.error("Chrome messaging API not available.");
             return;
         }
 
+        setUploading(true);
+
         try {
-            setUploading(true);
-            const reader = new FileReader();
-            reader.onload = () => {
-                const arrayBuffer = reader.result as ArrayBuffer;
-                const uint8Array = new Uint8Array(arrayBuffer);
-                const totalChunks = Math.ceil(uint8Array.length / CHUNK_SIZE);
+            const arrayBuffer = await file.arrayBuffer();
+            const uint8Array = new Uint8Array(arrayBuffer);
+            const totalChunks = Math.ceil(uint8Array.length / CHUNK_SIZE);
 
-                for (let i = 0; i < totalChunks; i++) {
-                    const start = i * CHUNK_SIZE;
-                    const end = Math.min(start + CHUNK_SIZE, uint8Array.length);
-                    const chunk = uint8Array.slice(start, end);
+            let successfulChunks = 0;
 
+            const sendChunk = (index: number) => {
+                const start = index * CHUNK_SIZE;
+                const end = Math.min(start + CHUNK_SIZE, uint8Array.length);
+                const chunk = uint8Array.slice(start, end);
+
+                return new Promise<void>((resolve) => {
                     chrome.runtime.sendMessage(
                         {
                             action: "triggerSafeBoxClientUploadChunk",
                             fileChunk: {
                                 name: file.name,
                                 mime_type: file.type,
-                                chunkIndex: i,
+                                chunkIndex: index,
                                 totalChunks,
                                 data: Array.from(chunk),
                             },
@@ -71,33 +72,42 @@ export default function UploadView({ onBack }: { onBack: () => void }) {
                             if (chrome.runtime.lastError) {
                                 toast.error("Extension not responding.");
                                 setUploading(false);
+                                resolve();
                                 return;
                             }
 
                             if (response?.success) {
-                                if (i === totalChunks - 1) {
+                                successfulChunks++;
+                                if (index === totalChunks - 1) {
                                     toast.success("Upload started", {
                                         description:
-                                            "Upload request received by client, please wait.",
+                                            "Upload request received by client. Please wait.",
                                     });
                                     setUploading(false);
                                 }
                             } else {
-                                toast.error("Error", {
+                                toast.error("Upload failed", {
                                     description:
                                         response?.error ?? "Unknown error",
                                 });
                                 setUploading(false);
                             }
+                            resolve();
                         }
                     );
-                }
+                });
             };
 
-            reader.readAsArrayBuffer(file);
+            for (let i = 0; i < totalChunks; i++) {
+                await sendChunk(i);
+            }
+
+            if (successfulChunks < totalChunks) {
+                toast.warning("Some chunks failed to upload.");
+            }
         } catch (err) {
             toast.error("Upload failed", {
-                description: (err as Error).message,
+                description: (err as Error).message || "Unexpected error",
             });
             setUploading(false);
         }

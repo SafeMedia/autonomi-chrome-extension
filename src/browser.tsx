@@ -28,18 +28,18 @@ function BrowserApp() {
     const [fileBlob, setFileBlob] = useState<Blob | null>(null);
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
-
     const [mimeType, setMimeType] = useState("");
 
     const [xorname, setXorname] = useState(() => {
         const params = new URLSearchParams(window.location.search);
-        return params.get("address") || "";
+        return params.get("xorname") || "";
     });
 
     useEffect(() => {
         if (xorname) {
-            handleSearch(); // automatically trigger search if pre-filled
+            handleSearch();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     async function handleSearch() {
@@ -54,58 +54,63 @@ function BrowserApp() {
             return;
         }
 
-        chrome.storage.local.get(
-            ["connectionType", "localPort"],
-            async (res) => {
-                const connectionType = res.connectionType || "local";
-                const port = res.localPort || "8080";
+        try {
+            chrome.storage.local.get(
+                ["connectionType", "localPort"],
+                async (res) => {
+                    const connectionType = res.connectionType || "local";
 
-                if (connectionType === "local") {
-                    try {
-                        const response = await fetch(
-                            `http://localhost:${port}/${xorname}`
-                        );
-                        if (!response.ok) throw new Error("Fetch failed");
+                    if (
+                        connectionType === "local" ||
+                        connectionType === "endpoints"
+                    ) {
+                        chrome.runtime.sendMessage(
+                            { action: "triggerSafeBoxClientDownload", xorname },
+                            async (response) => {
+                                setLoading(false);
+                                if (
+                                    response?.success &&
+                                    response.base64 &&
+                                    response.mimeType
+                                ) {
+                                    try {
+                                        const binary = atob(response.base64);
+                                        const len = binary.length;
+                                        const bytes = new Uint8Array(len);
+                                        for (let i = 0; i < len; i++) {
+                                            bytes[i] = binary.charCodeAt(i);
+                                        }
+                                        const blob = new Blob([bytes], {
+                                            type: response.mimeType,
+                                        });
 
-                        const blob = await response.blob();
-                        setMimeType(blob.type);
-                        setFileBlob(blob);
-                    } catch (err) {
-                        setError("Failed to fetch from local client.");
-                    } finally {
-                        setLoading(false);
-                    }
-                } else if (connectionType === "endpoints") {
-                    setError(
-                        "Endpoint server mode not supported yet, set local client mode in extension settings."
-                    );
-                    setLoading(false);
-                } else {
-                    // TODO re-implement download for local mode
-                    // Fallback to WebSocket request via extension message
-                    chrome.runtime.sendMessage(
-                        { action: "triggerSafeBoxClientDownload", xorname },
-                        async (response) => {
-                            setLoading(false);
-                            if (response?.success && response.dataUrl) {
-                                try {
-                                    const res = await fetch(response.dataUrl);
-                                    const blob = await res.blob();
-                                    setMimeType(blob.type);
-                                    setFileBlob(blob);
-                                } catch {
-                                    setError("Failed to load file.");
+                                        setMimeType(response.mimeType);
+                                        setFileBlob(blob);
+                                    } catch (err) {
+                                        console.error(
+                                            "Failed to decode base64:",
+                                            err
+                                        );
+                                        setError("Error decoding the file.");
+                                    }
+                                } else {
+                                    setError(
+                                        response?.error ||
+                                            "Error fetching file."
+                                    );
                                 }
-                            } else {
-                                setError(
-                                    response?.error || "Error fetching file."
-                                );
                             }
-                        }
-                    );
+                        );
+                    } else {
+                        setLoading(false);
+                        setError("No valid connection mode selected.");
+                    }
                 }
-            }
-        );
+            );
+        } catch {
+            setLoading(false);
+            setError("Unexpected error accessing local storage or messaging.");
+        }
     }
 
     function handleDownload() {
@@ -117,23 +122,33 @@ function BrowserApp() {
         const link = document.createElement("a");
         link.href = url;
         link.download = filename;
+        document.body.appendChild(link);
         link.click();
+        document.body.removeChild(link);
 
         URL.revokeObjectURL(url);
     }
 
-    // Render viewer based on mime type
     function renderViewer() {
-        if (!fileBlob) {
-            return null;
-        } else if (mimeType.startsWith("video/")) {
+        if (!fileBlob) return null;
+
+        if (mimeType.startsWith("video/")) {
             return <VideoViewer blob={fileBlob} />;
         } else if (mimeType.startsWith("audio/")) {
             return <AudioViewer blob={fileBlob} />;
         } else if (mimeType.startsWith("image/")) {
             return <ImageViewer blob={fileBlob} />;
-        } else {
+        } else if (
+            mimeType.startsWith("text/") ||
+            mimeType === "application/pdf"
+        ) {
             return <DocumentViewer blob={fileBlob} />;
+        } else {
+            return (
+                <div className="text-white">
+                    Unsupported file type: {mimeType}
+                </div>
+            );
         }
     }
 
@@ -159,6 +174,7 @@ function BrowserApp() {
                             onClick={handleSearch}
                             variant="secondary"
                             className="rounded-none rounded-r-md"
+                            title="Search"
                         >
                             <Search className="w-4 h-4" />
                         </Button>
@@ -176,7 +192,7 @@ function BrowserApp() {
             </div>
 
             {/* Viewer Area */}
-            <div className="flex-1 flex items-center justify-center bg-black text-white">
+            <div className="flex-1 flex items-center justify-center bg-black text-white p-4 overflow-auto">
                 {error && <div className="text-red-600">{error}</div>}
                 {loading && <div className="spinner"></div>}
                 {!loading && !error && fileBlob && renderViewer()}

@@ -93,7 +93,7 @@ export default function SettingsView({ onBack }: { onBack: () => void }) {
         try {
             const parsed = new URL(url);
             return (
-                parsed.protocol === "wss:" &&
+                (parsed.protocol === "ws:" || parsed.protocol === "wss:") &&
                 /^[^\s]+\.[^\s]+$/.test(parsed.hostname)
             );
         } catch {
@@ -104,7 +104,7 @@ export default function SettingsView({ onBack }: { onBack: () => void }) {
     const addUrl = () => {
         const trimmed = newUrl.trim();
         if (!isValidWebSocketUrl(trimmed)) {
-            toast.error("Please enter a valid wss:// WebSocket URL.");
+            toast.error("Please enter a valid ws:// or wss:// WebSocket URL.");
             return;
         }
         if (urls.includes(trimmed)) {

@@ -30,7 +30,7 @@ function FeedbackApp() {
             return;
         }
 
-        const url = `browser.html?address=${encodeURIComponent(input)}`;
+        const url = `browser.html?xorname=${encodeURIComponent(input)}`;
         window.open(url, "_blank");
     };
 
