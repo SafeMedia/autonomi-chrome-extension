@@ -39,7 +39,6 @@ function BrowserApp() {
         if (xorname) {
             handleSearch();
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     async function handleSearch() {
@@ -68,11 +67,8 @@ function BrowserApp() {
                             { action: "triggerSafeBoxClientDownload", xorname },
                             async (response) => {
                                 setLoading(false);
-                                if (
-                                    response?.success &&
-                                    response.base64 &&
-                                    response.mimeType
-                                ) {
+
+                                if (response?.success && response.base64) {
                                     try {
                                         const binary = atob(response.base64);
                                         const len = binary.length;
@@ -80,23 +76,31 @@ function BrowserApp() {
                                         for (let i = 0; i < len; i++) {
                                             bytes[i] = binary.charCodeAt(i);
                                         }
+
+                                        const mimeType =
+                                            response.mimeType ||
+                                            "application/octet-stream";
                                         const blob = new Blob([bytes], {
-                                            type: response.mimeType,
+                                            type: mimeType,
                                         });
 
-                                        setMimeType(response.mimeType);
+                                        setMimeType(mimeType);
                                         setFileBlob(blob);
                                     } catch (err) {
                                         console.error(
-                                            "Failed to decode base64:",
+                                            "Base64 decoding error:",
                                             err
                                         );
-                                        setError("Error decoding the file.");
+                                        setError(
+                                            "File decoding failed. Invalid data or corrupted response."
+                                        );
                                     }
                                 } else {
                                     setError(
-                                        response?.error ||
-                                            "Error fetching file."
+                                        response?.error ??
+                                            (response?.success === false
+                                                ? "Failed to fetch file from background script."
+                                                : "Unknown error fetching file.")
                                     );
                                 }
                             }
@@ -107,7 +111,11 @@ function BrowserApp() {
                     }
                 }
             );
-        } catch {
+        } catch (err) {
+            console.error(
+                "Unexpected error accessing storage or messaging:",
+                err
+            );
             setLoading(false);
             setError("Unexpected error accessing local storage or messaging.");
         }
@@ -154,7 +162,6 @@ function BrowserApp() {
 
     return (
         <div className="h-screen flex flex-col">
-            {/* Top Bar */}
             <div className="flex items-center px-1 py-[3px] bg-neutral-800">
                 <img src={headerLogo} alt="logo" className="h-8 mr-3" />
                 <div className="flex flex-1 items-center">
@@ -191,7 +198,6 @@ function BrowserApp() {
                 </div>
             </div>
 
-            {/* Viewer Area */}
             <div className="flex-1 flex items-center justify-center bg-black text-white p-4 overflow-auto">
                 {error && <div className="text-red-600">{error}</div>}
                 {loading && <div className="spinner"></div>}
@@ -201,4 +207,9 @@ function BrowserApp() {
     );
 }
 
-ReactDOM.createRoot(document.getElementById("root")!).render(<BrowserApp />);
+const rootEl = document.getElementById("root");
+if (rootEl) {
+    ReactDOM.createRoot(rootEl).render(<BrowserApp />);
+} else {
+    console.error("Root element not found.");
+}

@@ -1,22 +1,23 @@
 # Autonomi Chrome Extension
 
-<img src="https://github.com/user-attachments/assets/13cee998-15f9-4cb8-a8de-4050b5c6defb" width="200">
-<img src="https://github.com/user-attachments/assets/bc392e0f-418b-4739-ac86-2348c48875c3" width="200">
-<img src="https://github.com/user-attachments/assets/2e90de36-5e0d-4663-9802-3a2c9a0222b5" width="200">
-<img src="https://github.com/user-attachments/assets/975e13c7-6589-4f3e-81b3-6303f8b05f32" width="200">
-<img src="https://github.com/user-attachments/assets/4844ad36-8a1e-40a0-8aec-a72a0ece65ea" width="600">
+![Autonomi Chrome Extension Page](https://github.com/SafeMedia/images/blob/main/impossible_futures/autonomi-extension-page.png)
 
-<img src="https://github.com/SafeMedia/images/blob/main/impossible_futures/autonomi-extension-page.png" width="600">
+Local client:
 
-To download this extension code, you can do so by either cloning, or clicking the green button above and 'download zip'
+https://github.com/SafeMedia/anttp-ws-local
+
+You don't need to do any proxy stuff.
+
+Then download this extension code, you can do so by either cloning, or clicking the green button above and 'download zip'
 
 Then be sure to install the npm packages for the extension development testing (you need npm/yarn installed on your pc):
-
 
 ```bash
 yarn install
 ```
+
 or
+
 ```bash
 npm install
 ```
@@ -26,7 +27,9 @@ To build the extension for testing, run:
 ```bash
 yarn run build
 ```
+
 or
+
 ```bash
 npm run build
 ```
@@ -43,16 +46,11 @@ Once you generated a new extension build you can reload the extension by clickin
 
 Features
 
-- The ability to type 'ant' into the address bar, hit tab and then enter your xorname to view the file.
-- File browser
-- Native file view
+-   The ability to type 'ant' into the address bar, hit tab and then enter your xorname to view the file.
+-   File browser
+-   Native file view on local client mode
 
 ![Omni Feature](https://github.com/SafeMedia/images/blob/main/impossible_futures/safebox/safebox-omni.png)
-
-To run a local client you can download:
-https://github.com/SafeMedia/anttp-ws-local
-
-You only need to run a local client if you don't know someone or somewhere you can get a public endpoint URL to enter in your extensions settings page.
 
 If you want to try out some files:
 
@@ -64,7 +62,6 @@ pdf: 7c75c7d71a9ae9d6016901b849672bf908358e704111f68cac681d003446f603
 
 audio: a0f6fa2b08e868060fe6e57018e3f73294821feaf3fdcf9cd636ac3d11e7e2ac/BegBlag.mp3
 
-
 (You can ignore this section as I removed support for this for the moment. It will be added again soon)
 
 In your test web application which will interface with the extension, ensure the extension ID matches the one shown on the extension page.
@@ -72,9 +69,6 @@ In your test web application which will interface with the extension, ensure the
 You can find this ID on the extensions page just underneath the name of the extension itself.
 
 Ensure that you are serving your test application either on a website, or as localhost via an engine like 'npx serve'. This is because just right clicking and opening a html page in a browser will not work for this due to stricter cors restrictions by chrome.
-
-
-
 
 ### Contribute
 

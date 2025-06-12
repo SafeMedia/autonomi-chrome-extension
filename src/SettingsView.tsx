@@ -61,7 +61,6 @@ export default function SettingsView({ onBack }: { onBack: () => void }) {
                     setLocalPort("8081");
                 }
 
-                // Show info toast about drag functionality if not already acknowledged
                 if (!res[TOAST_ACK_KEY]) {
                     const id = toast.info(
                         "You can reorder the priority of endpoint servers by dragging them.",
@@ -125,9 +124,9 @@ export default function SettingsView({ onBack }: { onBack: () => void }) {
 
     const handleLocalPortChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value;
-        if (!/^\d*$/.test(value)) return; // Digits only
+        if (!/^\d*$/.test(value)) return;
         setLocalPort(value);
-        const portNum = Number(value || "8081"); // Default to 8081 if empty
+        const portNum = Number(value || "8081");
         if (portNum >= 1 && portNum <= 65535) {
             chrome.storage.local.set({ [LOCAL_PORT_KEY]: portNum });
         }
@@ -167,7 +166,7 @@ export default function SettingsView({ onBack }: { onBack: () => void }) {
                 <hr className="flex-grow border-t" />
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2 flex-1 overflow-hidden">
                 <Select
                     value={selectedOption}
                     onValueChange={handleOptionChange}
@@ -236,14 +235,13 @@ export default function SettingsView({ onBack }: { onBack: () => void }) {
                                     localPort.trim() === ""
                                         ? "8081"
                                         : localPort.trim();
-                                const testUrl = `http://localhost:${port}/`; // Adjust if endpoint changes
+                                const testUrl = `http://localhost:${port}/`;
 
                                 try {
                                     await fetch(testUrl, {
                                         method: "GET",
                                     });
 
-                                    // If the fetch resolved, even with a 404, we consider it connected.
                                     toast.success(
                                         <span className="flex items-center gap-2">
                                             <span className="w-2 h-2 bg-green-500 rounded-full"></span>
@@ -266,6 +264,13 @@ export default function SettingsView({ onBack }: { onBack: () => void }) {
                         </Button>
                     </>
                 )}
+            </div>
+
+            {/* Version display */}
+            <div className="pt-2 text-center">
+                <span className="text-[12px] text-muted-foreground text-center">
+                    version: 0.1.0
+                </span>
             </div>
         </div>
     );

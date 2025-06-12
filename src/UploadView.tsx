@@ -11,8 +11,7 @@ const STORAGE_KEY = "connectionType";
 const CHUNK_SIZE = 1024 * 1024; // 1MB
 
 export default function UploadView({ onBack }: { onBack: () => void }) {
-    const [fileName, setFileName] = useState("");
-    const [file, setFile] = useState<File | null>(null);
+    const [files, setFiles] = useState<File[]>([]);
     const [uploading, setUploading] = useState(false);
     const [mode, setMode] = useState<"local" | "endpoints" | null>(null);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -27,94 +26,99 @@ export default function UploadView({ onBack }: { onBack: () => void }) {
     }, []);
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const selected = e.target.files?.[0];
-        if (selected) {
-            setFile(selected);
-            setFileName(selected.name);
+        const fileList = e.target.files;
+        if (fileList && fileList.length > 0) {
+            const fileArray = Array.from(fileList);
+            setFiles(fileArray);
         }
     };
 
-    const handleUpload = async () => {
-        if (!file) return;
+    const uploadFile = async (file: File): Promise<string | null> => {
+        const arrayBuffer = await file.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+        const totalChunks = Math.ceil(uint8Array.length / CHUNK_SIZE);
+        const relativePath = (file as any).webkitRelativePath || file.name;
 
-        if (!chrome?.runtime?.sendMessage) {
-            toast.error("Chrome messaging API not available.");
-            return;
+        let xorname: string | null = null;
+
+        for (let index = 0; index < totalChunks; index++) {
+            const start = index * CHUNK_SIZE;
+            const end = Math.min(start + CHUNK_SIZE, uint8Array.length);
+            const chunk = uint8Array.slice(start, end);
+
+            await new Promise<void>((resolve) => {
+                const message = {
+                    action: "triggerSafeBoxClientUploadChunk",
+                    fileChunk: {
+                        name: relativePath,
+                        mime_type: file.type || "application/octet-stream",
+                        chunkIndex: index,
+                        totalChunks,
+                        data: chunk.buffer,
+                    },
+                };
+
+                // Only wait for a response on the **last** chunk
+                if (index === totalChunks - 1) {
+                    chrome.runtime.sendMessage(message, (response) => {
+                        if (chrome.runtime.lastError) {
+                            toast.error("Extension not responding.");
+                            resolve();
+                            return;
+                        }
+
+                        if (!response?.success) {
+                            toast.error(`Failed to upload ${relativePath}`);
+                        } else if (response.xorname) {
+                            xorname = response.xorname;
+                        }
+
+                        resolve();
+                    });
+                } else {
+                    // Don't wait for response, just send
+                    chrome.runtime.sendMessage(message);
+                    resolve();
+                }
+            });
         }
+
+        return xorname;
+    };
+
+    const handleUpload = async () => {
+        if (!files.length || uploading) return;
 
         setUploading(true);
 
         try {
-            const arrayBuffer = await file.arrayBuffer();
-            const uint8Array = new Uint8Array(arrayBuffer);
-            const totalChunks = Math.ceil(uint8Array.length / CHUNK_SIZE);
+            const xornames: string[] = [];
 
-            let successfulChunks = 0;
-
-            const sendChunk = (index: number) => {
-                const start = index * CHUNK_SIZE;
-                const end = Math.min(start + CHUNK_SIZE, uint8Array.length);
-                const chunk = uint8Array.slice(start, end);
-
-                return new Promise<void>((resolve) => {
-                    chrome.runtime.sendMessage(
-                        {
-                            action: "triggerSafeBoxClientUploadChunk",
-                            fileChunk: {
-                                name: file.name,
-                                mime_type: file.type,
-                                chunkIndex: index,
-                                totalChunks,
-                                data: Array.from(chunk),
-                            },
-                        },
-                        (response) => {
-                            if (chrome.runtime.lastError) {
-                                toast.error("Extension not responding.");
-                                setUploading(false);
-                                resolve();
-                                return;
-                            }
-
-                            if (response?.success) {
-                                successfulChunks++;
-                                if (index === totalChunks - 1) {
-                                    toast.success("Upload started", {
-                                        description:
-                                            "Upload request received by client. Please wait.",
-                                    });
-                                    setUploading(false);
-                                }
-                            } else {
-                                toast.error("Upload failed", {
-                                    description:
-                                        response?.error ?? "Unknown error",
-                                });
-                                setUploading(false);
-                            }
-                            resolve();
-                        }
-                    );
-                });
-            };
-
-            for (let i = 0; i < totalChunks; i++) {
-                await sendChunk(i);
+            for (const file of files) {
+                const xorname = await uploadFile(file);
+                if (xorname) xornames.push(xorname);
             }
 
-            if (successfulChunks < totalChunks) {
-                toast.warning("Some chunks failed to upload.");
+            toast.success("Upload started", {
+                description: "Upload request received by client. Please wait.",
+            });
+
+            if (files.length === 1 && xornames.length === 1) {
+                toast.success("Upload complete", {
+                    description: `XOR name: ${xornames[0]}`,
+                });
             }
         } catch (err) {
             toast.error("Upload failed", {
                 description: (err as Error).message || "Unexpected error",
             });
+        } finally {
             setUploading(false);
         }
     };
 
     return (
-        <div className="p-4 w-[300px] h-[350px] flex flex-col space-y-2 overflow-hidden">
+        <div className="p-4 w-[300px] h-[400px] flex flex-col space-y-2 overflow-hidden">
             <div className="flex items-center">
                 <Button
                     variant="outline"
@@ -132,7 +136,7 @@ export default function UploadView({ onBack }: { onBack: () => void }) {
             <div className="flex items-center gap-2">
                 <hr className="flex-grow border-t" />
                 <span className="text-xs text-muted-foreground">
-                    Upload File
+                    Upload Files
                 </span>
                 <hr className="flex-grow border-t" />
             </div>
@@ -143,7 +147,7 @@ export default function UploadView({ onBack }: { onBack: () => void }) {
                         <Button
                             variant="outline"
                             onClick={() => fileInputRef.current?.click()}
-                            title="Select File"
+                            title="Select Files or Folder"
                             className="rounded-r-none"
                             disabled={uploading}
                         >
@@ -151,15 +155,22 @@ export default function UploadView({ onBack }: { onBack: () => void }) {
                             Browse
                         </Button>
                         <Input
-                            value={fileName}
+                            value={
+                                files.length === 0
+                                    ? ""
+                                    : files.length === 1
+                                    ? files[0].name
+                                    : `${files.length} files selected`
+                            }
                             readOnly
-                            placeholder="No file selected"
+                            placeholder="No file/folder selected"
                             className="rounded-l-none"
                             disabled={uploading}
                         />
                         <input
                             ref={fileInputRef}
                             type="file"
+                            multiple={true}
                             onChange={handleFileSelect}
                             className="hidden"
                         />
@@ -168,7 +179,7 @@ export default function UploadView({ onBack }: { onBack: () => void }) {
                     <Button
                         className="w-full"
                         onClick={handleUpload}
-                        disabled={!file || uploading}
+                        disabled={!files.length || uploading}
                     >
                         <Upload className="w-4 h-4 mr-2" />
                         {uploading ? "Uploading..." : "Upload"}

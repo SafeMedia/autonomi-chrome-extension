@@ -12,6 +12,7 @@ let retryDelay = 2000;
 let currentConnectionType = null;
 let connecting = false;
 const pendingDownloads = new Map();
+const pendingUploads = new Map(); // ✅ New Map to track upload callbacks
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === "local" && changes.connectionType) {
@@ -31,34 +32,40 @@ function ensureSocketConnected() {
 
 function handleUploadChunk(request, senderId, sendResponse) {
   const { name, chunkIndex, totalChunks, data, mime_type } = request.fileChunk;
-  const key = `${senderId}_${name}`;
-  fileChunks[key] = fileChunks[key] || [];
-  fileChunks[key][chunkIndex] = new Uint8Array(data);
 
-  const message = JSON.stringify({
-    name,
-    mime_type,
-    chunk_index: chunkIndex,
-    total_chunks: totalChunks,
-    data: Array.from(new Uint8Array(data)),
-  });
+  // ✅ Store response callback only on first chunk
+  if (chunkIndex === 0) {
+    pendingUploads.set(name, sendResponse);
+  }
+
+  const metadata = {
+    type: "upload",
+    metadata: {
+      filename: name,
+      mime_type,
+      chunk_index: chunkIndex,
+      total_chunks: totalChunks,
+    },
+    chunk: arrayBufferToBase64(data),
+  };
+
+  const jsonMessage = JSON.stringify(metadata);
 
   if (socketReady && socket.readyState === WebSocket.OPEN) {
-    socket.send(message);
-    sendResponse({ success: true });
+    socket.send(jsonMessage);
   } else {
-    pendingChunks.push(message);
-    sendResponse({ success: true, queued: true });
+    pendingChunks.push(jsonMessage);
     ensureSocketConnected();
   }
+
+  // Keep port open until upload_complete received
+  return true;
 }
 
 function arrayBufferToBase64(buffer) {
-  // Convert Uint8Array to binary string then to base64
   let binary = '';
   const bytes = new Uint8Array(buffer);
-  const len = bytes.byteLength;
-  for (let i = 0; i < len; i++) {
+  for (let i = 0; i < bytes.length; i++) {
     binary += String.fromCharCode(bytes[i]);
   }
   return btoa(binary);
@@ -95,10 +102,8 @@ function initWebSocket() {
           await new Promise((resolve, reject) => {
             const testSocket = new WebSocket(url);
             let settled = false;
-
             testSocket.onopen = () => !settled && (settled = true, testSocket.close(), resolve());
             testSocket.onerror = testSocket.onclose = () => !settled && (settled = true, reject());
-
             setTimeout(() => {
               if (!settled) {
                 settled = true;
@@ -127,6 +132,7 @@ function initWebSocket() {
 
     currentConnectionType = selectedOption;
     socket = new WebSocket(wsUrl);
+    socket.binaryType = "arraybuffer";
 
     socket.onopen = () => {
       socketReady = true;
@@ -137,11 +143,48 @@ function initWebSocket() {
       pendingChunks = [];
 
       for (const [xorname] of pendingDownloads) {
-        socket.send(xorname);
+        socket.send(JSON.stringify({ type: "download", address: xorname }));
       }
     };
 
     socket.onmessage = async (event) => {
+      if (typeof event.data === "string") {
+        try {
+          const parsed = JSON.parse(event.data);
+
+          if (parsed.type === "upload_complete" && parsed.xorname && parsed.filename) {
+            console.log("✅ Upload complete received:", parsed);
+            const cb = pendingUploads.get(parsed.filename);
+            if (cb) {
+              cb({ success: true, xorname: parsed.xorname });
+              pendingUploads.delete(parsed.filename);
+            }
+            return;
+          }
+        } catch (e) {
+          if (typeof event.data === "string") {
+  try {
+    const parsed = JSON.parse(event.data);
+
+    if (parsed.type === "upload_complete" && parsed.xorname && parsed.filename) {
+      console.log("✅ Upload complete received:", parsed);
+      const cb = pendingUploads.get(parsed.filename);
+      if (cb) {
+        cb({ success: true, xorname: parsed.xorname });
+        pendingUploads.delete(parsed.filename);
+      }
+      return;
+    }
+  } catch (e) {
+    console.warn("⚠️ Received non-JSON string over socket:", event.data);
+  }
+  return;
+}
+
+        }
+        return;
+      }
+
       const data = event.data;
       const arrayBuffer = data instanceof Blob ? await data.arrayBuffer() : data;
 
@@ -153,18 +196,16 @@ function initWebSocket() {
 
       const mimeType = metadata.mimeType || "application/octet-stream";
       const xorname = metadata.xorname;
-
       const fileBytes = new Uint8Array(arrayBuffer, 4 + metadataLength);
-      
-const base64Data = arrayBufferToBase64(fileBytes);
-console.log("Received data length:", fileBytes.length, "xorname:", xorname);
-console.log("Base64 sample:", base64Data.slice(0, 50));
 
+      const base64Data = arrayBufferToBase64(fileBytes);
 
       const cb = pendingDownloads.get(xorname);
       if (cb) {
         cb({ success: true, base64: base64Data, mimeType });
         pendingDownloads.delete(xorname);
+      } else {
+        console.warn("No pending callback found for xorname:", xorname);
       }
     };
 
@@ -191,7 +232,6 @@ function notifyUser(title, message) {
   chrome.tabs.create({ url });
 }
 
-// Internal messaging
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   try {
     if (request.action === "triggerSafeBoxClientDownload" && isValidSafePath(request.xorname)) {
@@ -199,7 +239,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       pendingDownloads.set(xorname, sendResponse);
 
       if (socketReady && socket.readyState === WebSocket.OPEN) {
-        socket.send(xorname);
+        socket.send(JSON.stringify({ type: "download", address: xorname }));
       } else {
         ensureSocketConnected();
       }
@@ -220,14 +260,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
-// External messaging
 chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => {
   return chrome.runtime.onMessage.hasListeners
     ? chrome.runtime.onMessage.call(null, request, sender, sendResponse)
     : false;
 });
 
-// Omnibox search
 chrome.omnibox.onInputEntered.addListener((text) => {
   chrome.storage.local.get(["connectionType", "endpointUrls"], async (res) => {
     const selectedOption = res.connectionType || "local";
@@ -237,14 +275,14 @@ chrome.omnibox.onInputEntered.addListener((text) => {
       return;
     }
 
+    const viewerUrl = chrome.runtime.getURL(`browser.html?xorname=${encodeURIComponent(text)}`);
     if (selectedOption === "endpoints") {
       const urls = Array.isArray(res.endpointUrls) ? res.endpointUrls : [];
-      if (urls.length === 0) {
+      if (!urls.length) {
         notifyUser("No Endpoints", "No endpoint URLs configured.");
         return;
       }
 
-      // Optionally test if any endpoint is reachable
       let connected = false;
       for (const url of urls) {
         try {
@@ -263,17 +301,8 @@ chrome.omnibox.onInputEntered.addListener((text) => {
         notifyUser("Connection Failed", "Could not connect to any endpoint servers.");
         return;
       }
-
-      // Open the extension's viewer with the xorname
-      const viewerUrl = chrome.runtime.getURL(`browser.html?xorname=${encodeURIComponent(text)}`);
-      chrome.tabs.create({ url: viewerUrl });
-      return;
     }
 
-    if (selectedOption === "local") {
-      const viewerUrl = chrome.runtime.getURL(`browser.html?xorname=${encodeURIComponent(text)}`);
-      chrome.tabs.create({ url: viewerUrl });
-    }
+    chrome.tabs.create({ url: viewerUrl });
   });
 });
-
