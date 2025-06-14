@@ -132,17 +132,19 @@ function App() {
 
     const handleOpenNative = async () => {
         if (selectedOption === "local") {
-            const port = "8080";
+            //  const port = "8080";
             const path = nativeAddress.trim().replace(/^\/+/, "");
             const trimmed = path.trim();
 
-            if (!isValidXorname(trimmed)) {
-                toast.error("Invalid Autonomi address");
-                return;
-            }
+            // if (!isValidXorname(trimmed)) {
+            //     toast.error("Invalid Autonomi address");
+            //     return;
+            // }
 
-            const url = `http://localhost:${port}/${trimmed}`;
-            window.open(url, "_blank");
+            const browserUrl = `dweb-browser.html?xorname=${encodeURIComponent(
+                trimmed
+            )}`;
+            window.open(browserUrl, "_blank");
         } else {
             const path = nativeAddress.trim().replace(/^\/+/, "");
             const trimmed = path.trim();
@@ -230,12 +232,12 @@ function App() {
                 </div>
             </div>
 
-            {/* Open Native Section */}
+            {/* Browsing Section */}
             <div className="space-y-2">
                 <div className="flex items-center gap-2">
                     <hr className="flex-grow border-t" />
                     <span className="text-xs text-muted-foreground">
-                        Open Native
+                        Browsing
                     </span>
                     <hr className="flex-grow border-t" />
                 </div>
@@ -246,7 +248,7 @@ function App() {
                     onChange={(e) => setNativeAddress(e.target.value)}
                 />
                 <Button className="w-full" onClick={handleOpenNative}>
-                    Open Native
+                    Browse DWeb
                 </Button>
             </div>
 

@@ -17,6 +17,7 @@ export default defineConfig({
                 feedback: resolve(__dirname, "feedback.html"),
                 main: resolve(__dirname, "index.html"),
                 browser: resolve(__dirname, "browser.html"),
+                dwebBrowser: resolve(__dirname, "dweb-browser.html"),
             },
         },
     },

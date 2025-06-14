@@ -50,11 +50,12 @@
           "http://*/*",
           "*://localhost:*/*",
           "http://localhost:5172/*",
+           "http://localhost:8080/*",
           "http://localhost:3002/*"]
       },
      "web_accessible_resources": [
     {
-      "resources": ["feedback.html", "feedback.js", "browser.html", "src/viewers/image.tsx", "src/viewers/video.tsx", "src/viewers/audio.tsx",  "src/viewers/document.tsx"],
+      "resources": ["feedback.html", "feedback.js", "browser.html", "dweb-browser.html", "dweb-browser.js", "src/viewers/image.tsx", "src/viewers/video.tsx", "src/viewers/audio.tsx",  "src/viewers/document.tsx"],
       "matches": ["<all_urls>"]
     }
   ]
