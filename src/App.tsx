@@ -1,14 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-    Image,
-    Video,
-    FileText,
-    Music,
-    Settings,
-    Globe,
-    Upload,
-    Wallet,
-} from "lucide-react";
+import { Settings, Globe, Upload, Wallet } from "lucide-react";
 import {
     Tooltip,
     TooltipContent,
@@ -24,10 +15,14 @@ const STORAGE_KEY = "connectionOption";
 const URLS_KEY = "urls";
 const LOCAL_PORT_KEY = "localPort";
 
+const antTPPort = "8082";
+const dWebPort = "8083";
+
 function App() {
     const [view, setView] = useState<"main" | "settings" | "upload">("main");
     const [_localPort, setLocalPort] = useState("");
-    const [nativeAddress, setNativeAddress] = useState("");
+    const [antTPAddress, setAntTPAddress] = useState("");
+    const [dWebAddress, setDWebAddress] = useState("");
     const [selectedOption, setSelectedOption] = useState("");
     const [_urls, setUrls] = useState<string[]>([]); // endpoint urls use is mode is endpoints
 
@@ -93,10 +88,6 @@ function App() {
         };
     }, []);
 
-    const openViewer = (type: string) => {
-        window.open(`${type}.html`, "_blank");
-    };
-
     async function getBestRemoteEndpoint(): Promise<string | null> {
         return new Promise((resolve) => {
             chrome.storage.local.get(["endpointUrls"], async (result) => {
@@ -130,20 +121,19 @@ function App() {
         });
     }
 
-    const handleOpenNative = async () => {
+    const handleOpenAntTPAddress = async () => {
         if (selectedOption === "local") {
-            const port = "8083";
-            const path = nativeAddress.trim().replace(/^\/+/, "");
+            const path = antTPAddress.trim().replace(/^\/+/, "");
             const trimmed = path.trim();
 
-            const baseUrl = `http://127.0.0.1:${port}/dweb-open/v/${trimmed}`;
+            const baseUrl = `http://127.0.0.1:${antTPPort}/${trimmed}`;
             window.open(baseUrl, "_blank");
         } else {
-            const path = nativeAddress.trim().replace(/^\/+/, "");
+            const path = dWebAddress.trim().replace(/^\/+/, "");
             const trimmed = path.trim();
 
             if (!isValidXorname(trimmed)) {
-                toast.error("Invalid Autonomi address");
+                toast.error("Invalid AntTP Autonomi address");
                 return;
             }
 
@@ -168,7 +158,52 @@ function App() {
                 // Optional: clean up later
                 setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
             } catch (error: any) {
-                toast.error("Failed to load file from remote endpoint");
+                toast.error("Failed to open address from remote endpoint");
+                console.error(error);
+            }
+        }
+    };
+
+    const handleOpenDWebAddress = async () => {
+        if (selectedOption === "local") {
+            const path = dWebAddress.trim().replace(/^\/+/, "");
+            const trimmed = path.trim();
+
+            const baseUrl = `http://127.0.0.1:${dWebPort}/dweb-open/v/${trimmed}`;
+            window.open(baseUrl, "_blank");
+        } else {
+            const path = dWebAddress.trim().replace(/^\/+/, "");
+            const trimmed = path.trim();
+
+            if (!isValidXorname(trimmed)) {
+                toast.error("Invalid DWeb Autonomi address");
+                return;
+            }
+
+            const remoteEndpoint = await getBestRemoteEndpoint();
+
+            if (!remoteEndpoint) {
+                toast.error("No available endpoint URLs");
+                return;
+            }
+
+            try {
+                const response = await fetch(
+                    `${remoteEndpoint}/dweb-open/v/${trimmed}`
+                );
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const blob = await response.blob();
+                const objectUrl = URL.createObjectURL(blob);
+
+                window.open(objectUrl, "_blank");
+
+                // Optional: clean up later
+                setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+            } catch (error: any) {
+                toast.error("Failed to open address from remote endpoint");
                 console.error(error);
             }
         }
@@ -182,47 +217,22 @@ function App() {
 
     return (
         <div className="p-4 space-y-6 w-[300px] h-[350px] overflow-auto">
-            {/* Media Viewers Section */}
+            {/* Open DWeb Section */}
             <div className="space-y-2">
                 <div className="flex items-center gap-2">
                     <hr className="flex-grow border-t" />
-                    <span className="text-xs text-muted-foreground">
-                        Media Browser
-                    </span>
+                    <span className="text-xs text-muted-foreground">AntTP</span>
                     <hr className="flex-grow border-t" />
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                    {[
-                        { icon: Image, label: "View Images" },
-                        { icon: Video, label: "Watch Videos" },
-                        { icon: FileText, label: "Read Documents" },
-                        { icon: Music, label: "Listen to Audio" },
-                    ].map(({ icon: Icon, label }, index) => (
-                        <Tooltip key={index}>
-                            <TooltipTrigger asChild>
-                                <Button
-                                    variant="outline"
-                                    className="w-full flex justify-center"
-                                    onClick={() => {
-                                        if (selectedOption === "local") {
-                                            openViewer("browser");
-                                        } else {
-                                            toast.error(
-                                                "Not currently supported in this mode. Use local client instead."
-                                            );
-                                        }
-                                    }}
-                                >
-                                    <Icon className="w-4 h-4" />
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                <p>{label}</p>
-                            </TooltipContent>
-                        </Tooltip>
-                    ))}
-                </div>
+                <Input
+                    placeholder="Enter AntTP address"
+                    value={antTPAddress}
+                    onChange={(e) => setAntTPAddress(e.target.value)}
+                />
+                <Button className="w-full" onClick={handleOpenAntTPAddress}>
+                    Browse AntTP
+                </Button>
             </div>
 
             {/* Open DWeb Section */}
@@ -235,10 +245,10 @@ function App() {
 
                 <Input
                     placeholder="Enter DWeb address"
-                    value={nativeAddress}
-                    onChange={(e) => setNativeAddress(e.target.value)}
+                    value={dWebAddress}
+                    onChange={(e) => setDWebAddress(e.target.value)}
                 />
-                <Button className="w-full" onClick={handleOpenNative}>
+                <Button className="w-full" onClick={handleOpenDWebAddress}>
                     Browse DWeb
                 </Button>
             </div>
