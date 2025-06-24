@@ -12,7 +12,7 @@ let retryDelay = 2000;
 let currentConnectionType = null;
 let connecting = false;
 const pendingDownloads = new Map();
-const pendingUploads = new Map(); // ✅ New Map to track upload callbacks
+const pendingUploads = new Map(); 
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === "local" && changes.connectionType) {

@@ -223,8 +223,15 @@ export default function SettingsView({ onBack }: { onBack: () => void }) {
                     </>
                 ) : (
                     <>
+                        <div className="flex items-center gap-2">
+                            <hr className="flex-grow border-t" />
+                            <span className="text-xs text-muted-foreground">
+                                WebSocket Port
+                            </span>
+                            <hr className="flex-grow border-t" />
+                        </div>
                         <Input
-                            placeholder="Enter local port (default 8081)"
+                            placeholder="Enter local port (default 8084)"
                             value={localPort}
                             onChange={handleLocalPortChange}
                         />
@@ -233,7 +240,7 @@ export default function SettingsView({ onBack }: { onBack: () => void }) {
                             onClick={async () => {
                                 const port =
                                     localPort.trim() === ""
-                                        ? "8081"
+                                        ? "8084"
                                         : localPort.trim();
                                 const testUrl = `http://localhost:${port}/`;
 

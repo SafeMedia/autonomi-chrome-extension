@@ -15,15 +15,16 @@ const STORAGE_KEY = "connectionOption";
 const URLS_KEY = "urls";
 const LOCAL_PORT_KEY = "localPort";
 
-const antTPPort = "8082";
-const dWebPort = "8083";
-
 function App() {
     const [view, setView] = useState<"main" | "settings" | "upload">("main");
-    const [_localPort, setLocalPort] = useState("");
+    const [localPort, setLocalPort] = useState("");
     const [antTPAddress, setAntTPAddress] = useState("");
     const [dWebAddress, setDWebAddress] = useState("");
     const [selectedOption, setSelectedOption] = useState("");
+
+    const [antTPPort, setAntTPPort] = useState(8082);
+    const [dWebPort, setDWebPort] = useState(8083);
+
     const [_urls, setUrls] = useState<string[]>([]); // endpoint urls use is mode is endpoints
 
     const isValidXorname = (input: string) => {
@@ -52,7 +53,7 @@ function App() {
                 if (res[LOCAL_PORT_KEY]) {
                     setLocalPort(String(res[LOCAL_PORT_KEY]));
                 } else {
-                    setLocalPort("8081");
+                    setLocalPort("8084");
                 }
             }
         );
@@ -87,6 +88,37 @@ function App() {
             chrome.storage.onChanged.removeListener(handleStorageChange);
         };
     }, []);
+
+    // update anttp & dweb ports if mode is local
+    useEffect(() => {
+        if (selectedOption === "local" && localPort) {
+            const baseUrl = `http://127.0.0.1:${localPort}`;
+
+            // Fetch AntTP port
+            fetch(`${baseUrl}/getAntTPPort`)
+                .then((res) => res.json())
+                .then((data) => {
+                    const port = data.port;
+                    setAntTPPort(port);
+                })
+                .catch((err) => {
+                    console.error("Error fetching AntTP port:", err);
+                    setAntTPAddress(""); // fallback or clear
+                });
+
+            // Fetch DWeb port
+            fetch(`${baseUrl}/getDWebPort`)
+                .then((res) => res.json())
+                .then((data) => {
+                    const port = data.port;
+                    setDWebPort(port);
+                })
+                .catch((err) => {
+                    console.error("Error fetching DWeb port:", err);
+                    setDWebAddress("");
+                });
+        }
+    }, [selectedOption, localPort]);
 
     async function getBestRemoteEndpoint(): Promise<string | null> {
         return new Promise((resolve) => {
