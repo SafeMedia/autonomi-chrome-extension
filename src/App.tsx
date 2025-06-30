@@ -33,7 +33,7 @@ function App() {
     };
 
     useEffect(() => {
-        // Initial fetch
+        // initial fetch
         chrome.storage.local.get(
             [STORAGE_KEY, URLS_KEY, LOCAL_PORT_KEY],
             (res) => {
@@ -187,7 +187,6 @@ function App() {
 
                 window.open(objectUrl, "_blank");
 
-                // Optional: clean up later
                 setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
             } catch (error: any) {
                 toast.error("Failed to open address from remote endpoint");
@@ -232,7 +231,6 @@ function App() {
 
                 window.open(objectUrl, "_blank");
 
-                // Optional: clean up later
                 setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
             } catch (error: any) {
                 toast.error("Failed to open address from remote endpoint");

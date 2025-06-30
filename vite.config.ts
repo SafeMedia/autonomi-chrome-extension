@@ -16,7 +16,6 @@ export default defineConfig({
             input: {
                 feedback: resolve(__dirname, "feedback.html"),
                 main: resolve(__dirname, "index.html"),
-                browser: resolve(__dirname, "browser.html"),
             },
         },
     },

@@ -12,11 +12,29 @@ function FeedbackApp() {
     const [input, setInput] = useState("");
     const [title, setTitle] = useState("Feedback");
     const [message, setMessage] = useState("");
+    const [antTPPort, setAntTPPort] = useState<number | null>(null);
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         setTitle(decodeURIComponent(params.get("title") || "Feedback"));
         setMessage(decodeURIComponent(params.get("message") || ""));
+
+        // fetch the AntTP port from background
+        chrome.runtime.sendMessage({ action: "fetchAntTPPort" }, (response) => {
+            if (chrome.runtime.lastError) {
+                toast.error(
+                    "Error fetching AntTP port: " +
+                        chrome.runtime.lastError.message
+                );
+            } else if (response?.success) {
+                setAntTPPort(response.antTPPort);
+            } else {
+                toast.error(
+                    "Failed to get AntTP port: " +
+                        (response?.error || "Unknown error")
+                );
+            }
+        });
     }, []);
 
     const handleSearch = () => {
@@ -30,7 +48,9 @@ function FeedbackApp() {
             return;
         }
 
-        const url = `browser.html?xorname=${encodeURIComponent(input)}`;
+        const url = `http://127.0.0.1:${antTPPort}/${encodeURIComponent(
+            input
+        )}`;
         window.open(url, "_blank");
     };
 
