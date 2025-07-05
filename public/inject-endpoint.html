@@ -1,0 +1,87 @@
+<div id="autonomi-toolbar" style="
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2147483647;
+  background: #222;
+  padding: 7px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  font-family: sans-serif;
+">
+  <div style="
+    display: flex;
+    align-items: center;
+    padding: 3px 8px;
+    background-color: #222;
+    border-radius: 4px;
+  ">
+    <img
+      id="headerLogo"
+      alt="logo"
+      style="height: 32px; margin-right: 12px;"
+    />
+
+    <div style="display: flex; flex: 1; align-items: center;">
+      <input
+        id="xornameInput"
+        type="text"
+        placeholder="Enter Autonomi URL"
+        style="
+          flex: 1;
+          height: 32px;
+          padding: 0 12px;
+          font-size: 14px;
+          border: 1px solid #444;
+          border-right: none;
+          border-radius: 4px 0 0 4px;
+          background: white;
+          color: black;
+          box-sizing: border-box;
+        "
+      />
+
+      <button
+        id="searchBtn"
+        title="Search"
+        style="
+          height: 32px;
+          padding: 0 12px;
+          border: 1px solid #444;
+          border-left: none;
+          border-radius: 0 8px 8px 0;
+          background: #7c7c7c;
+          color: white;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 16px;
+          user-select: none;
+        "
+      >
+        🔍
+      </button>
+
+      <button
+        id="downloadBtn"
+        title="Download"
+        style="
+          height: 32px;
+          padding: 0 12px;
+          margin-left: 5px;
+          border: 1px solid #444;
+          border-radius: 8px;
+          background: #7c7c7c;
+          color: white;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 16px;
+          user-select: none;
+        "
+      >
+        ⬇️
+      </button>
+    </div>
+  </div>
+</div>

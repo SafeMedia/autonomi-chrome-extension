@@ -38,6 +38,16 @@
             "matches": ["http://127.0.0.1/*"],
             "js": ["inject.js"],
             "run_at": "document_idle"
+        },
+        {
+            "matches": ["<all_urls>"],
+            "exclude_matches": [
+                "http://localhost/*",
+                "http://127.0.0.1/*",
+                "https://localhost/*"
+            ],
+            "js": ["inject-endpoint.js"],
+            "run_at": "document_idle"
         }
     ],
     "host_permissions": [
@@ -67,6 +77,8 @@
                 "feedback.html",
                 "inject.html",
                 "inject.js",
+                "inject-endpoint.html",
+                "inject-endpoint.js",
                 "feedback.js"
             ],
             "matches": ["<all_urls>"]
