@@ -132,33 +132,127 @@ function App() {
         }
     }, [selectedOption, localPort]);
 
+    async function getBestRemoteDomain(): Promise<string | null> {
+        return new Promise((resolve) => {
+            chrome.storage.local.get(["endpointUrls"], async (result) => {
+                const urls = result.endpointUrls as string[] | undefined;
+                console.log("Stored endpoint URLs:", urls);
+
+                if (!urls || urls.length === 0) {
+                    console.warn("No endpoint URLs found in storage");
+                    resolve(null);
+                    return;
+                }
+
+                // helper to convert wss/ws URL to https with 'anttp.' prefix
+                function convertWsToHttps(wsUrl: string): string | null {
+                    try {
+                        const urlObj = new URL(wsUrl);
+
+                        if (
+                            urlObj.protocol !== "ws:" &&
+                            urlObj.protocol !== "wss:"
+                        ) {
+                            return null;
+                        }
+
+                        // extract domain, remove 'ws.' or 'wss.' prefix if present
+                        let hostname = urlObj.hostname;
+                        if (hostname.startsWith("ws.")) {
+                            hostname = hostname.substring(3);
+                        } else if (hostname.startsWith("wss.")) {
+                            hostname = hostname.substring(4);
+                        }
+
+                        // compose new hostname with 'anttp.' prefix
+                        const newHost = `anttp.${hostname}`;
+
+                        // always use https protocol
+                        return `https://${newHost}`;
+                    } catch {
+                        return null;
+                    }
+                }
+
+                for (const url of urls) {
+                    const httpsUrl = convertWsToHttps(url);
+                    if (!httpsUrl) {
+                        console.warn("Invalid websocket URL, skipping:", url);
+                        continue;
+                    }
+
+                    try {
+                        console.log("Trying HTTPS endpoint:", httpsUrl);
+                        const response = await fetch(`${httpsUrl}/`, {
+                            method: "HEAD",
+                            mode: "cors",
+                        });
+
+                        if (response.ok || response.status === 404) {
+                            console.log(
+                                "Endpoint works:",
+                                httpsUrl,
+                                response.status
+                            );
+                            resolve(httpsUrl);
+                            return;
+                        } else {
+                            console.warn(
+                                "Endpoint responded but not OK:",
+                                httpsUrl,
+                                response.status
+                            );
+                        }
+                    } catch (e) {
+                        console.warn("Error fetching endpoint:", httpsUrl, e);
+                        continue;
+                    }
+                }
+
+                console.warn("No HTTPS endpoints responded successfully");
+                resolve(null);
+            });
+        });
+    }
+
     async function getBestRemoteEndpoint(): Promise<string | null> {
         return new Promise((resolve) => {
             chrome.storage.local.get(["endpointUrls"], async (result) => {
                 const urls = result.endpointUrls as string[] | undefined;
+                console.log("Stored endpoint URLs:", urls);
+
                 if (!urls || urls.length === 0) {
+                    console.warn("No endpoint URLs found in storage");
                     resolve(null);
                     return;
                 }
 
                 for (const url of urls) {
                     try {
-                        // Try fetching a health check or HEAD on root (faster)
+                        console.log("Trying endpoint:", url);
                         const response = await fetch(`${url}/`, {
                             method: "HEAD",
                             mode: "cors",
                         });
 
                         if (response.ok) {
+                            console.log("Endpoint works:", url);
                             resolve(url);
                             return;
+                        } else {
+                            console.warn(
+                                "Endpoint responded but not OK:",
+                                url,
+                                response.status
+                            );
                         }
                     } catch (e) {
+                        console.warn("Error fetching endpoint:", url, e);
                         continue;
                     }
                 }
 
-                // None worked
+                console.warn("No endpoints responded successfully");
                 resolve(null);
             });
         });
@@ -172,7 +266,7 @@ function App() {
             const baseUrl = `http://127.0.0.1:${antTPPort}/${trimmed}`;
             window.open(baseUrl, "_blank");
         } else {
-            const path = dWebAddress.trim().replace(/^\/+/, "");
+            const path = antTPAddress.trim().replace(/^\/+/, "");
             const trimmed = path.trim();
 
             if (!isValidXorname(trimmed)) {
@@ -180,25 +274,26 @@ function App() {
                 return;
             }
 
-            const remoteEndpoint = await getBestRemoteEndpoint();
+            const remoteDomain = await getBestRemoteDomain();
 
-            if (!remoteEndpoint) {
+            if (!remoteDomain) {
                 toast.error("No available endpoint URLs");
                 return;
             }
 
             try {
-                const response = await fetch(`${remoteEndpoint}/${trimmed}`);
-                if (!response.ok) {
+                // Just check if URL is reachable or 404 (valid)
+                const response = await fetch(`${remoteDomain}/${trimmed}`, {
+                    method: "HEAD",
+                    mode: "cors",
+                });
+
+                if (!response.ok && response.status !== 404) {
                     throw new Error(`HTTP ${response.status}`);
                 }
 
-                const blob = await response.blob();
-                const objectUrl = URL.createObjectURL(blob);
-
-                window.open(objectUrl, "_blank");
-
-                setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+                // Open the full URL directly in new tab — no blobs or fetch of body needed
+                window.open(`${remoteDomain}/${trimmed}`, "_blank");
             } catch (error: any) {
                 toast.error("Failed to open address from remote endpoint");
                 console.error(error);
