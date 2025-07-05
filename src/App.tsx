@@ -11,7 +11,7 @@ import SettingsView from "./SettingsView";
 import UploadView from "./UploadView";
 import { toast } from "sonner";
 
-const STORAGE_KEY = "connectionOption";
+const STORAGE_KEY = "connectionType";
 const URLS_KEY = "urls";
 const LOCAL_PORT_KEY = "localPort";
 
@@ -25,7 +25,7 @@ function App() {
     const [antTPPort, setAntTPPort] = useState(8082);
     const [dWebPort, setDWebPort] = useState(8083);
 
-    const [_urls, setUrls] = useState<string[]>([]); // endpoint urls use is mode is endpoints
+    const [_urls, setUrls] = useState<string[]>([]); // endpoint urls use if mode is endpoints
 
     const isValidXorname = (input: string) => {
         const regex = /^[a-f0-9]{64}(\/[\w\-._~:@!$&'()*+,;=]+)*$/i;
@@ -33,6 +33,10 @@ function App() {
     };
 
     useEffect(() => {
+        chrome.storage.local.get("connectionType", (result) => {
+            console.log(result);
+        });
+
         // initial fetch
         chrome.storage.local.get(
             [STORAGE_KEY, URLS_KEY, LOCAL_PORT_KEY],
@@ -43,7 +47,15 @@ function App() {
                 ) {
                     setSelectedOption(res[STORAGE_KEY]);
                 } else {
-                    setSelectedOption("local");
+                    setSelectedOption("endpoints");
+                    chrome.storage.local.set(
+                        { connectionType: "endpoints" },
+                        () => {
+                            console.log(
+                                "connectionType set to endpoints by default"
+                            );
+                        }
+                    );
                 }
 
                 if (Array.isArray(res[URLS_KEY])) {
@@ -65,7 +77,7 @@ function App() {
                 setSelectedOption(
                     newValue === "endpoints" || newValue === "local"
                         ? newValue
-                        : "local"
+                        : "endpoints"
                 );
             }
 
@@ -78,7 +90,7 @@ function App() {
 
             if (changes[LOCAL_PORT_KEY]) {
                 const newPort = changes[LOCAL_PORT_KEY].newValue;
-                setLocalPort(newPort ? String(newPort) : "8081");
+                setLocalPort(newPort ? String(newPort) : "8084");
             }
         }
 
@@ -142,7 +154,6 @@ function App() {
                             return;
                         }
                     } catch (e) {
-                        // console.warn(`Failed to connect to ${url}:`, e);
                         continue;
                     }
                 }
@@ -240,51 +251,75 @@ function App() {
     };
 
     if (view === "settings") {
-        return <SettingsView onBack={() => setView("main")} />;
+        return (
+            <SettingsView
+                onBack={() => {
+                    chrome.storage.local.get("connectionType", (result) => {
+                        console.log("THE RESULT IS: ", result);
+                    });
+
+                    setView("main");
+                }}
+            />
+        );
     } else if (view === "upload") {
         return <UploadView onBack={() => setView("main")} />;
     }
 
     return (
-        <div className="p-4 space-y-6 w-[300px] h-[350px] overflow-auto">
-            {/* Open DWeb Section */}
-            <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                    <hr className="flex-grow border-t" />
-                    <span className="text-xs text-muted-foreground">AntTP</span>
-                    <hr className="flex-grow border-t" />
+        <div className="p-4 w-[300px] h-[370px] flex flex-col justify-between">
+            <div>
+                {/* Open ANTTP Section */}
+                <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                        <hr className="flex-grow border-t" />
+                        <span className="text-xs text-muted-foreground">
+                            AntTP
+                        </span>
+                        <hr className="flex-grow border-t" />
+                    </div>
+
+                    <Input
+                        placeholder="Enter AntTP address"
+                        value={antTPAddress}
+                        onChange={(e) => setAntTPAddress(e.target.value)}
+                    />
+                    <Button className="w-full" onClick={handleOpenAntTPAddress}>
+                        Browse AntTP
+                    </Button>
                 </div>
 
-                <Input
-                    placeholder="Enter AntTP address"
-                    value={antTPAddress}
-                    onChange={(e) => setAntTPAddress(e.target.value)}
-                />
-                <Button className="w-full" onClick={handleOpenAntTPAddress}>
-                    Browse AntTP
-                </Button>
-            </div>
+                {/* Open DWeb Section */}
+                {selectedOption === "local" ? (
+                    <div className="space-y-2 mt-4">
+                        <div className="flex items-center gap-2">
+                            <hr className="flex-grow border-t" />
+                            <span className="text-xs text-muted-foreground">
+                                DWeb
+                            </span>
+                            <hr className="flex-grow border-t" />
+                        </div>
 
-            {/* Open DWeb Section */}
-            <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                    <hr className="flex-grow border-t" />
-                    <span className="text-xs text-muted-foreground">DWeb</span>
-                    <hr className="flex-grow border-t" />
-                </div>
-
-                <Input
-                    placeholder="Enter DWeb address"
-                    value={dWebAddress}
-                    onChange={(e) => setDWebAddress(e.target.value)}
-                />
-                <Button className="w-full" onClick={handleOpenDWebAddress}>
-                    Browse DWeb
-                </Button>
+                        <Input
+                            placeholder="Enter DWeb address"
+                            value={dWebAddress}
+                            onChange={(e) => setDWebAddress(e.target.value)}
+                        />
+                        <Button
+                            className="w-full"
+                            onClick={handleOpenDWebAddress}
+                        >
+                            Browse DWeb
+                        </Button>
+                    </div>
+                ) : (
+                    // Empty div with same height to preserve spacing
+                    <div className="space-y-2" style={{ height: "116px" }} />
+                )}
             </div>
 
             {/* Settings Section */}
-            <div className="space-y-2">
+            <div className="space-y-2 mt-4">
                 <div className="flex items-center gap-2">
                     <hr className="flex-grow border-t" />
                     <span className="text-xs text-muted-foreground">
@@ -299,7 +334,9 @@ function App() {
                             <Button
                                 variant="outline"
                                 className="w-full flex justify-center"
-                                onClick={() => setView("settings")}
+                                onClick={() => {
+                                    setView("settings");
+                                }}
                             >
                                 <Settings className="w-4 h-4" />
                             </Button>

@@ -50,7 +50,7 @@ export default function SettingsView({ onBack }: { onBack: () => void }) {
                 ) {
                     setSelectedOption(res[STORAGE_KEY]);
                 } else {
-                    setSelectedOption("local");
+                    setSelectedOption("endpoints");
                 }
                 if (Array.isArray(res[URLS_KEY])) {
                     setUrls(res[URLS_KEY]);
@@ -58,7 +58,7 @@ export default function SettingsView({ onBack }: { onBack: () => void }) {
                 if (res[LOCAL_PORT_KEY]) {
                     setLocalPort(String(res[LOCAL_PORT_KEY]));
                 } else {
-                    setLocalPort("8081");
+                    setLocalPort("8084");
                 }
 
                 if (!res[TOAST_ACK_KEY]) {
@@ -126,7 +126,7 @@ export default function SettingsView({ onBack }: { onBack: () => void }) {
         const value = e.target.value;
         if (!/^\d*$/.test(value)) return;
         setLocalPort(value);
-        const portNum = Number(value || "8081");
+        const portNum = Number(value || "8084");
         if (portNum >= 1 && portNum <= 65535) {
             chrome.storage.local.set({ [LOCAL_PORT_KEY]: portNum });
         }

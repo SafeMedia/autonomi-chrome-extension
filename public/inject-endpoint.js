@@ -1,3 +1,35 @@
+const URLS_KEY = "endpointUrls";
+
+function transformWsUrlToAnttp(url) {
+    try {
+        const parsed = new URL(url);
+        // use https or http depending on wss/ws
+        let protocol = parsed.protocol === "wss:" ? "https:" : "http:";
+
+        let hostname = parsed.hostname;
+        // remove leading 'ws.' if present
+        if (hostname.startsWith("ws.")) {
+            hostname = hostname.slice(3);
+        }
+        // prepend 'anttp.' subdomain
+        hostname = `anttp.${hostname}`;
+
+        return `${protocol}//${hostname}`;
+    } catch {
+        return null;
+    }
+}
+
+function shouldInjectOnCurrentPage(endpointUrls) {
+    if (!endpointUrls || !endpointUrls.length) return false;
+
+    const anttpUrls = endpointUrls.map(transformWsUrlToAnttp).filter(Boolean);
+
+    const currentOrigin = window.location.origin;
+
+    return anttpUrls.some((allowedUrl) => currentOrigin.startsWith(allowedUrl));
+}
+
 function injectHTML() {
     fetch(chrome.runtime.getURL("/inject-endpoint.html"))
         .then((res) => res.text())
@@ -20,11 +52,9 @@ function injectHTML() {
 
                     const toolbar = wrapper.querySelector("#autonomi-toolbar");
 
-                    // after layout
                     requestAnimationFrame(() => {
                         const toolbarHeight = toolbar.offsetHeight;
 
-                        // push page content down
                         document.body.style.marginTop = `${
                             toolbarHeight + 8
                         }px`;
@@ -32,7 +62,6 @@ function injectHTML() {
                             toolbarHeight + 8
                         }px`;
 
-                        // create a spacer div just below the toolbar
                         const spacer = document.createElement("div");
                         spacer.style.height = "8px";
                         spacer.style.width = "100%";
@@ -45,7 +74,6 @@ function injectHTML() {
                             "#fff";
                         wrapper.appendChild(spacer);
 
-                        // offset fixed elements top if they overlap toolbar
                         function offsetFixedElements() {
                             document.querySelectorAll("*").forEach((el) => {
                                 const style = getComputedStyle(el);
@@ -64,7 +92,6 @@ function injectHTML() {
 
                         offsetFixedElements();
 
-                        // future additions of fixed elements and offset them
                         const observer = new MutationObserver(() => {
                             offsetFixedElements();
                         });
@@ -74,7 +101,6 @@ function injectHTML() {
                         });
                     });
 
-                    // set image src for logo
                     const img = document.getElementById("headerLogo");
                     if (img) {
                         img.src = chrome.runtime.getURL(
@@ -250,4 +276,13 @@ function showToast(message, duration = 3000) {
     }, duration);
 }
 
-injectHTML();
+// first get stored endpointUrls, then check if current page matches allowed domains,
+// only then inject UI
+
+chrome.storage.local.get(URLS_KEY, ({ [URLS_KEY]: endpointUrls }) => {
+    if (shouldInjectOnCurrentPage(endpointUrls)) {
+        injectHTML();
+    } else {
+        // not in allowed domain, do nothing
+    }
+});

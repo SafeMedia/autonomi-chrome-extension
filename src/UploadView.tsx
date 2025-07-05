@@ -118,7 +118,7 @@ export default function UploadView({ onBack }: { onBack: () => void }) {
     };
 
     return (
-        <div className="p-4 w-[300px] h-[400px] flex flex-col space-y-2 overflow-hidden">
+        <div className="p-4 w-[300px] h-[370px] flex flex-col space-y-2 overflow-hidden">
             <div className="flex items-center">
                 <Button
                     variant="outline"
