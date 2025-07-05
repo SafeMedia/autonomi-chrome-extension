@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
     DndContext,
     closestCenter,
@@ -22,7 +22,6 @@ import {
 import { toast } from "sonner";
 
 import { CSS } from "@dnd-kit/utilities";
-
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Cable, Plus, X } from "lucide-react";
@@ -39,27 +38,60 @@ export default function SettingsView({ onBack }: { onBack: () => void }) {
     const [urls, setUrls] = useState<string[]>([]);
     const [newUrl, setNewUrl] = useState("");
     const [localPort, setLocalPort] = useState("");
+    const [statusMap, setStatusMap] = useState<
+        Record<string, "ok" | "fail" | "loading">
+    >({});
+
+    const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+    const fetchStatuses = async (urlsToCheck: string[]) => {
+        const results: Record<string, "ok" | "fail"> = {};
+        await Promise.all(
+            urlsToCheck.map(async (url) => {
+                try {
+                    const ws = new WebSocket(url);
+                    return await new Promise<void>((resolve) => {
+                        const cleanup = () => {
+                            ws.close();
+                            resolve();
+                        };
+                        ws.onopen = () => {
+                            results[url] = "ok";
+                            cleanup();
+                        };
+                        ws.onerror = () => {
+                            results[url] = "fail";
+                            cleanup();
+                        };
+                        setTimeout(() => {
+                            results[url] = "fail";
+                            cleanup();
+                        }, 3000); // timeout after 3s
+                    });
+                } catch {
+                    results[url] = "fail";
+                }
+            })
+        );
+        setStatusMap((prev) => ({
+            ...prev,
+            ...results,
+        }));
+    };
 
     useEffect(() => {
         chrome.storage.local.get(
             [STORAGE_KEY, URLS_KEY, LOCAL_PORT_KEY, TOAST_ACK_KEY],
             (res) => {
+                const urls = Array.isArray(res[URLS_KEY]) ? res[URLS_KEY] : [];
+                setUrls(urls);
                 if (
                     res[STORAGE_KEY] === "local" ||
                     res[STORAGE_KEY] === "endpoints"
                 ) {
                     setSelectedOption(res[STORAGE_KEY]);
-                } else {
-                    setSelectedOption("endpoints");
                 }
-                if (Array.isArray(res[URLS_KEY])) {
-                    setUrls(res[URLS_KEY]);
-                }
-                if (res[LOCAL_PORT_KEY]) {
-                    setLocalPort(String(res[LOCAL_PORT_KEY]));
-                } else {
-                    setLocalPort("8084");
-                }
+                setLocalPort(res[LOCAL_PORT_KEY]?.toString() || "8084");
 
                 if (!res[TOAST_ACK_KEY]) {
                     const id = toast.info(
@@ -81,6 +113,20 @@ export default function SettingsView({ onBack }: { onBack: () => void }) {
             }
         );
     }, []);
+
+    useEffect(() => {
+        if (selectedOption !== "endpoints") return;
+
+        // initial status load
+        fetchStatuses(urls);
+
+        // poll every 15 seconds
+        intervalRef.current = setInterval(() => fetchStatuses(urls), 15000);
+
+        return () => {
+            if (intervalRef.current) clearInterval(intervalRef.current);
+        };
+    }, [urls, selectedOption]);
 
     const handleOptionChange = (val: string) => {
         const option = val as "endpoints" | "local";
@@ -215,6 +261,7 @@ export default function SettingsView({ onBack }: { onBack: () => void }) {
                                             key={url}
                                             url={url}
                                             onDelete={() => deleteUrl(index)}
+                                            status={statusMap[url]}
                                         />
                                     ))}
                                 </SortableContext>
@@ -238,17 +285,11 @@ export default function SettingsView({ onBack }: { onBack: () => void }) {
                         <Button
                             className="w-full justify-between"
                             onClick={async () => {
-                                const port =
-                                    localPort.trim() === ""
-                                        ? "8084"
-                                        : localPort.trim();
+                                const port = localPort.trim() || "8084";
                                 const testUrl = `http://localhost:${port}/`;
 
                                 try {
-                                    await fetch(testUrl, {
-                                        method: "GET",
-                                    });
-
+                                    await fetch(testUrl, { method: "GET" });
                                     toast.success(
                                         <span className="flex items-center gap-2">
                                             <span className="w-2 h-2 bg-green-500 rounded-full"></span>
@@ -256,7 +297,7 @@ export default function SettingsView({ onBack }: { onBack: () => void }) {
                                             {port}
                                         </span>
                                     );
-                                } catch (e) {
+                                } catch {
                                     toast.error(
                                         <span className="flex items-center gap-2">
                                             <span className="w-2 h-2 bg-red-500 rounded-full"></span>
@@ -273,10 +314,9 @@ export default function SettingsView({ onBack }: { onBack: () => void }) {
                 )}
             </div>
 
-            {/* Version display */}
             <div className="pt-2 text-center">
-                <span className="text-[12px] text-muted-foreground text-center">
-                    version: 0.1.0
+                <span className="text-[12px] text-muted-foreground">
+                    version: 0.1.1
                 </span>
             </div>
         </div>
@@ -286,9 +326,11 @@ export default function SettingsView({ onBack }: { onBack: () => void }) {
 function UrlItemWithDelete({
     url,
     onDelete,
+    status,
 }: {
     url: string;
     onDelete: () => void;
+    status?: "ok" | "fail" | "loading";
 }) {
     const { attributes, listeners, setNodeRef, transform, transition } =
         useSortable({ id: url });
@@ -298,6 +340,13 @@ function UrlItemWithDelete({
         transition,
     };
 
+    const statusColor =
+        status === "ok"
+            ? "bg-green-500"
+            : status === "fail"
+            ? "bg-red-500"
+            : "bg-yellow-400";
+
     return (
         <div className="flex items-center justify-between space-x-2">
             <div
@@ -305,10 +354,11 @@ function UrlItemWithDelete({
                 {...attributes}
                 {...listeners}
                 style={style}
-                className="flex-1 bg-muted px-3 py-2 rounded text-sm cursor-move select-none truncate"
-                title="Drag to reorder"
+                className="flex items-center space-x-2 flex-1 bg-muted px-3 py-2 rounded text-sm cursor-move select-none truncate"
+                title={url}
             >
-                {url}
+                <span className={`w-2 h-2 rounded-full ${statusColor}`} />
+                <span className="truncate">{url}</span>
             </div>
             <Button
                 variant="ghost"
