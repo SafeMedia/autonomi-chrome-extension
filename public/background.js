@@ -49,7 +49,7 @@ function handleUploadChunk(request, senderId, sendResponse) {
     const { name, chunkIndex, totalChunks, data, mime_type } =
         request.fileChunk;
 
-    // ✅ Store response callback only on first chunk
+    //  store response callback only on first chunk
     if (chunkIndex === 0) {
         pendingUploads.set(name, sendResponse);
     }
@@ -74,7 +74,7 @@ function handleUploadChunk(request, senderId, sendResponse) {
         ensureSocketConnected();
     }
 
-    // Keep port open until upload_complete received
+    // keep port open until upload_complete received
     return true;
 }
 
@@ -85,6 +85,37 @@ function arrayBufferToBase64(buffer) {
         binary += String.fromCharCode(bytes[i]);
     }
     return btoa(binary);
+}
+
+async function findFirstWorkingWebSocket(urls) {
+    const tryConnect = (url) =>
+        new Promise() <
+        string >
+        ((resolve, reject) => {
+            const ws = new WebSocket(url);
+            const timeout = setTimeout(() => {
+                ws.close();
+                reject(new Error("Timeout"));
+            }, 4000);
+
+            ws.onopen = () => {
+                clearTimeout(timeout);
+                ws.close();
+                resolve(url);
+            };
+            ws.onerror = ws.onclose = () => {
+                clearTimeout(timeout);
+                reject(new Error(`Failed to connect: ${url}`));
+            };
+        });
+
+    const promises = urls.map(tryConnect);
+
+    try {
+        return await Promise.any(promises); // resolves with first success
+    } catch {
+        return null;
+    }
 }
 
 function initWebSocket() {
@@ -111,9 +142,14 @@ function initWebSocket() {
             let wsUrl = null;
 
             if (selectedOption === "endpoints") {
-                const urls = Array.isArray(res.endpointUrls)
+                const rawDomains = Array.isArray(res.endpointUrls)
                     ? res.endpointUrls
                     : [];
+
+                const urls = rawDomains.flatMap((domain) => [
+                    `wss://ws.${domain}`,
+                    `ws://ws.${domain}`,
+                ]);
                 if (!urls.length) {
                     notifyUser(
                         "Endpoint Error",
@@ -123,30 +159,7 @@ function initWebSocket() {
                     return;
                 }
 
-                for (const url of urls) {
-                    try {
-                        await new Promise((resolve, reject) => {
-                            const testSocket = new WebSocket(url);
-                            let settled = false;
-                            testSocket.onopen = () =>
-                                !settled &&
-                                ((settled = true),
-                                testSocket.close(),
-                                resolve());
-                            testSocket.onerror = testSocket.onclose = () =>
-                                !settled && ((settled = true), reject());
-                            setTimeout(() => {
-                                if (!settled) {
-                                    settled = true;
-                                    testSocket.close();
-                                    reject();
-                                }
-                            }, 5000);
-                        });
-                        wsUrl = url;
-                        break;
-                    } catch {}
-                }
+                wsUrl = await findFirstWorkingWebSocket(urls);
 
                 if (!wsUrl) {
                     notifyUser(
@@ -408,32 +421,38 @@ chrome.omnibox.onInputEntered.addListener((text) => {
                     );
                 }
             } else if (selectedOption === "endpoints") {
-                const urls = Array.isArray(res.endpointUrls)
+                const rawDomains = Array.isArray(res.endpointUrls)
                     ? res.endpointUrls
                     : [];
-                if (!urls.length) {
-                    notifyUser("No Endpoints", "No endpoint URLs configured.");
+
+                if (!rawDomains.length) {
+                    notifyUser(
+                        "Endpoint Error",
+                        "⚠️ No endpoint server URLs found. Add some in the settings."
+                    );
                     return;
                 }
 
-                let connected = false;
-                for (const url of urls) {
+                // attempt HEAD request to find a responsive domain from endpoint urls
+                let bestDomain = null;
+                for (const baseDomain of rawDomains) {
+                    const httpsUrl = `https://anttp.${baseDomain}`;
                     try {
-                        const testSocket = new WebSocket(url);
-                        await new Promise((resolve, reject) => {
-                            testSocket.onopen = () => (
-                                testSocket.close(), resolve()
-                            );
-                            testSocket.onerror = testSocket.onclose = () =>
-                                reject();
-                            setTimeout(() => reject(), 3000);
+                        const response = await fetch(`${httpsUrl}/`, {
+                            method: "HEAD",
+                            mode: "cors",
                         });
-                        connected = true;
-                        break;
-                    } catch {}
+
+                        if (response.ok || response.status === 404) {
+                            bestDomain = baseDomain;
+                            break;
+                        }
+                    } catch (err) {
+                        console.warn(`❌ Failed to reach ${httpsUrl}`, err);
+                    }
                 }
 
-                if (!connected) {
+                if (!bestDomain) {
                     notifyUser(
                         "Connection Failed",
                         "Could not connect to any endpoint servers."
@@ -441,7 +460,10 @@ chrome.omnibox.onInputEntered.addListener((text) => {
                     return;
                 }
 
-                // TODO open the server URL
+                const trimmed = text.replace(/^\/+/, "");
+                const finalUrl = `https://anttp.${bestDomain}/${trimmed}`;
+                console.log("🌐 Opening tab at:", finalUrl);
+                chrome.tabs.create({ url: finalUrl });
             }
         }
     );

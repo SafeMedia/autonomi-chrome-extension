@@ -44,10 +44,11 @@ export default function SettingsView({ onBack }: { onBack: () => void }) {
 
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-    const fetchStatuses = async (urlsToCheck: string[]) => {
+    const fetchStatuses = async (baseUrls: string[]) => {
         const results: Record<string, "ok" | "fail"> = {};
         await Promise.all(
-            urlsToCheck.map(async (url) => {
+            baseUrls.map(async (base) => {
+                const url = `wss://ws.${base}`;
                 try {
                     const ws = new WebSocket(url);
                     return await new Promise<void>((resolve) => {
@@ -56,20 +57,20 @@ export default function SettingsView({ onBack }: { onBack: () => void }) {
                             resolve();
                         };
                         ws.onopen = () => {
-                            results[url] = "ok";
+                            results[base] = "ok";
                             cleanup();
                         };
                         ws.onerror = () => {
-                            results[url] = "fail";
+                            results[base] = "fail";
                             cleanup();
                         };
                         setTimeout(() => {
-                            results[url] = "fail";
+                            results[base] = "fail";
                             cleanup();
-                        }, 3000); // timeout after 3s
+                        }, 3000);
                     });
                 } catch {
-                    results[url] = "fail";
+                    results[base] = "fail";
                 }
             })
         );
@@ -117,10 +118,7 @@ export default function SettingsView({ onBack }: { onBack: () => void }) {
     useEffect(() => {
         if (selectedOption !== "endpoints") return;
 
-        // initial status load
         fetchStatuses(urls);
-
-        // poll every 15 seconds
         intervalRef.current = setInterval(() => fetchStatuses(urls), 15000);
 
         return () => {
@@ -134,29 +132,30 @@ export default function SettingsView({ onBack }: { onBack: () => void }) {
         chrome.storage.local.set({ [STORAGE_KEY]: option });
     };
 
-    const isValidWebSocketUrl = (url: string) => {
+    const extractDomain = (input: string) => {
         try {
+            let url = input.trim();
+            if (!/^https?:\/\//.test(url)) {
+                url = "https://" + url;
+            }
             const parsed = new URL(url);
-            return (
-                (parsed.protocol === "ws:" || parsed.protocol === "wss:") &&
-                /^[^\s]+\.[^\s]+$/.test(parsed.hostname)
-            );
+            return parsed.hostname;
         } catch {
-            return false;
+            return null;
         }
     };
 
     const addUrl = () => {
-        const trimmed = newUrl.trim();
-        if (!isValidWebSocketUrl(trimmed)) {
-            toast.error("Please enter a valid ws:// or wss:// WebSocket URL.");
+        const domain = extractDomain(newUrl);
+        if (!domain || !/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(domain)) {
+            toast.error("Please enter a valid domain (e.g. domain.com)");
             return;
         }
-        if (urls.includes(trimmed)) {
-            toast.warning("That URL is already in your list.");
+        if (urls.includes(domain)) {
+            toast.warning("That domain is already in your list.");
             return;
         }
-        const updated = [...urls, trimmed];
+        const updated = [...urls, domain];
         setUrls(updated);
         chrome.storage.local.set({ [URLS_KEY]: updated });
         setNewUrl("");
@@ -193,12 +192,7 @@ export default function SettingsView({ onBack }: { onBack: () => void }) {
     return (
         <div className="p-4 w-[300px] h-[370px] flex flex-col space-y-2 overflow-hidden">
             <div className="flex items-center">
-                <Button
-                    variant="outline"
-                    className="mr-2"
-                    onClick={onBack}
-                    title="Back"
-                >
+                <Button variant="outline" className="mr-2" onClick={onBack}>
                     <ArrowLeft className="w-4 h-4" />
                 </Button>
                 <h1 className="absolute left-1/2 transform -translate-x-1/2 text-lg font-semibold">
@@ -232,16 +226,12 @@ export default function SettingsView({ onBack }: { onBack: () => void }) {
                     <>
                         <div className="flex gap-2">
                             <Input
-                                placeholder="Add WebSocket URL"
+                                placeholder="Add Domain 'domain.com'"
                                 value={newUrl}
                                 onChange={(e) => setNewUrl(e.target.value)}
                                 className="flex-1"
                             />
-                            <Button
-                                onClick={addUrl}
-                                variant="outline"
-                                title="Add"
-                            >
+                            <Button onClick={addUrl} variant="outline">
                                 <Plus className="w-4 h-4" />
                             </Button>
                         </div>
@@ -289,7 +279,7 @@ export default function SettingsView({ onBack }: { onBack: () => void }) {
                                 const testUrl = `http://localhost:${port}/`;
 
                                 try {
-                                    await fetch(testUrl, { method: "GET" });
+                                    await fetch(testUrl);
                                     toast.success(
                                         <span className="flex items-center gap-2">
                                             <span className="w-2 h-2 bg-green-500 rounded-full"></span>

@@ -10,10 +10,15 @@ import { Input } from "./components/ui/input";
 import SettingsView from "./SettingsView";
 import UploadView from "./UploadView";
 import { toast } from "sonner";
+import { isValidXorname } from "./utils";
 
 const STORAGE_KEY = "connectionType";
-const URLS_KEY = "urls";
+const URLS_KEY = "endpointUrls";
 const LOCAL_PORT_KEY = "localPort";
+
+function cleanAddressInput(value: string): string {
+    return value.trim().replace(/^\/+/, "");
+}
 
 function App() {
     const [view, setView] = useState<"main" | "settings" | "upload">("main");
@@ -24,53 +29,33 @@ function App() {
 
     const [antTPPort, setAntTPPort] = useState(8082);
     const [dWebPort, setDWebPort] = useState(8083);
-
-    const [_urls, setUrls] = useState<string[]>([]); // endpoint urls use if mode is endpoints
-
-    const isValidXorname = (input: string) => {
-        const regex = /^[a-f0-9]{64}(\/[\w\-._~:@!$&'()*+,;=]+)*$/i;
-        return regex.test(input) && !input.includes("..");
-    };
+    const [urls, setUrls] = useState<string[]>([]);
 
     useEffect(() => {
-        chrome.storage.local.get("connectionType", (result) => {
-            console.log(result);
-        });
-
-        // initial fetch
         chrome.storage.local.get(
             [STORAGE_KEY, URLS_KEY, LOCAL_PORT_KEY],
             (res) => {
+                const connectionType = res[STORAGE_KEY];
                 if (
-                    res[STORAGE_KEY] === "local" ||
-                    res[STORAGE_KEY] === "endpoints"
+                    connectionType === "local" ||
+                    connectionType === "endpoints"
                 ) {
-                    setSelectedOption(res[STORAGE_KEY]);
+                    setSelectedOption(connectionType);
                 } else {
                     setSelectedOption("endpoints");
-                    chrome.storage.local.set(
-                        { connectionType: "endpoints" },
-                        () => {
-                            console.log(
-                                "connectionType set to endpoints by default"
-                            );
-                        }
-                    );
+                    chrome.storage.local.set({ [STORAGE_KEY]: "endpoints" });
                 }
 
                 if (Array.isArray(res[URLS_KEY])) {
                     setUrls(res[URLS_KEY]);
                 }
 
-                if (res[LOCAL_PORT_KEY]) {
-                    setLocalPort(String(res[LOCAL_PORT_KEY]));
-                } else {
-                    setLocalPort("8084");
-                }
+                setLocalPort(
+                    res[LOCAL_PORT_KEY] ? String(res[LOCAL_PORT_KEY]) : "8084"
+                );
             }
         );
 
-        // Listener for future changes
         function handleStorageChange(changes: any) {
             if (changes[STORAGE_KEY]) {
                 const newValue = changes[STORAGE_KEY].newValue;
@@ -81,50 +66,38 @@ function App() {
                 );
             }
 
-            if (changes[URLS_KEY]) {
-                const newUrls = changes[URLS_KEY].newValue;
-                if (Array.isArray(newUrls)) {
-                    setUrls(newUrls);
-                }
+            if (
+                changes[URLS_KEY] &&
+                Array.isArray(changes[URLS_KEY].newValue)
+            ) {
+                setUrls(changes[URLS_KEY].newValue);
             }
 
             if (changes[LOCAL_PORT_KEY]) {
-                const newPort = changes[LOCAL_PORT_KEY].newValue;
-                setLocalPort(newPort ? String(newPort) : "8084");
+                setLocalPort(changes[LOCAL_PORT_KEY].newValue || "8084");
             }
         }
 
         chrome.storage.onChanged.addListener(handleStorageChange);
-
-        return () => {
+        return () =>
             chrome.storage.onChanged.removeListener(handleStorageChange);
-        };
     }, []);
 
-    // update anttp & dweb ports if mode is local
     useEffect(() => {
         if (selectedOption === "local" && localPort) {
             const baseUrl = `http://127.0.0.1:${localPort}`;
 
-            // Fetch AntTP port
             fetch(`${baseUrl}/getAntTPPort`)
                 .then((res) => res.json())
-                .then((data) => {
-                    const port = data.port;
-                    setAntTPPort(port);
-                })
+                .then((data) => setAntTPPort(data.port))
                 .catch((err) => {
                     console.error("Error fetching AntTP port:", err);
-                    setAntTPAddress(""); // fallback or clear
+                    setAntTPAddress("");
                 });
 
-            // Fetch DWeb port
             fetch(`${baseUrl}/getDWebPort`)
                 .then((res) => res.json())
-                .then((data) => {
-                    const port = data.port;
-                    setDWebPort(port);
-                })
+                .then((data) => setDWebPort(data.port))
                 .catch((err) => {
                     console.error("Error fetching DWeb port:", err);
                     setDWebAddress("");
@@ -133,238 +106,83 @@ function App() {
     }, [selectedOption, localPort]);
 
     async function getBestRemoteDomain(): Promise<string | null> {
-        return new Promise((resolve) => {
-            chrome.storage.local.get(["endpointUrls"], async (result) => {
-                const urls = result.endpointUrls as string[] | undefined;
-                console.log("Stored endpoint URLs:", urls);
+        console.log("urls:", urls);
+        if (!urls || urls.length === 0) return null;
 
-                if (!urls || urls.length === 0) {
-                    console.warn("No endpoint URLs found in storage");
-                    resolve(null);
-                    return;
+        for (const baseDomain of urls) {
+            const httpsUrl = `https://anttp.${baseDomain}`;
+
+            try {
+                const response = await fetch(`${httpsUrl}/`, {
+                    method: "HEAD",
+                    mode: "cors",
+                });
+
+                if (response.ok || response.status === 404) {
+                    return httpsUrl;
                 }
+            } catch (err) {
+                console.warn(`Failed to reach ${httpsUrl}`, err);
+                continue;
+            }
+        }
 
-                // helper to convert wss/ws URL to https with 'anttp.' prefix
-                function convertWsToHttps(wsUrl: string): string | null {
-                    try {
-                        const urlObj = new URL(wsUrl);
-
-                        if (
-                            urlObj.protocol !== "ws:" &&
-                            urlObj.protocol !== "wss:"
-                        ) {
-                            return null;
-                        }
-
-                        // extract domain, remove 'ws.' or 'wss.' prefix if present
-                        let hostname = urlObj.hostname;
-                        if (hostname.startsWith("ws.")) {
-                            hostname = hostname.substring(3);
-                        } else if (hostname.startsWith("wss.")) {
-                            hostname = hostname.substring(4);
-                        }
-
-                        // compose new hostname with 'anttp.' prefix
-                        const newHost = `anttp.${hostname}`;
-
-                        // always use https protocol
-                        return `https://${newHost}`;
-                    } catch {
-                        return null;
-                    }
-                }
-
-                for (const url of urls) {
-                    const httpsUrl = convertWsToHttps(url);
-                    if (!httpsUrl) {
-                        console.warn("Invalid websocket URL, skipping:", url);
-                        continue;
-                    }
-
-                    try {
-                        console.log("Trying HTTPS endpoint:", httpsUrl);
-                        const response = await fetch(`${httpsUrl}/`, {
-                            method: "HEAD",
-                            mode: "cors",
-                        });
-
-                        if (response.ok || response.status === 404) {
-                            console.log(
-                                "Endpoint works:",
-                                httpsUrl,
-                                response.status
-                            );
-                            resolve(httpsUrl);
-                            return;
-                        } else {
-                            console.warn(
-                                "Endpoint responded but not OK:",
-                                httpsUrl,
-                                response.status
-                            );
-                        }
-                    } catch (e) {
-                        console.warn("Error fetching endpoint:", httpsUrl, e);
-                        continue;
-                    }
-                }
-
-                console.warn("No HTTPS endpoints responded successfully");
-                resolve(null);
-            });
-        });
-    }
-
-    async function getBestRemoteEndpoint(): Promise<string | null> {
-        return new Promise((resolve) => {
-            chrome.storage.local.get(["endpointUrls"], async (result) => {
-                const urls = result.endpointUrls as string[] | undefined;
-                console.log("Stored endpoint URLs:", urls);
-
-                if (!urls || urls.length === 0) {
-                    console.warn("No endpoint URLs found in storage");
-                    resolve(null);
-                    return;
-                }
-
-                for (const url of urls) {
-                    try {
-                        console.log("Trying endpoint:", url);
-                        const response = await fetch(`${url}/`, {
-                            method: "HEAD",
-                            mode: "cors",
-                        });
-
-                        if (response.ok) {
-                            console.log("Endpoint works:", url);
-                            resolve(url);
-                            return;
-                        } else {
-                            console.warn(
-                                "Endpoint responded but not OK:",
-                                url,
-                                response.status
-                            );
-                        }
-                    } catch (e) {
-                        console.warn("Error fetching endpoint:", url, e);
-                        continue;
-                    }
-                }
-
-                console.warn("No endpoints responded successfully");
-                resolve(null);
-            });
-        });
+        return null;
     }
 
     const handleOpenAntTPAddress = async () => {
+        const trimmed = cleanAddressInput(antTPAddress);
+
         if (selectedOption === "local") {
-            const path = antTPAddress.trim().replace(/^\/+/, "");
-            const trimmed = path.trim();
-
-            const baseUrl = `http://127.0.0.1:${antTPPort}/${trimmed}`;
-            window.open(baseUrl, "_blank");
+            const localUrl = `http://127.0.0.1:${antTPPort}/${trimmed}`;
+            window.open(localUrl, "_blank");
         } else {
-            const path = antTPAddress.trim().replace(/^\/+/, "");
-            const trimmed = path.trim();
-
             if (!isValidXorname(trimmed)) {
                 toast.error("Invalid AntTP Autonomi address");
                 return;
             }
 
             const remoteDomain = await getBestRemoteDomain();
-
             if (!remoteDomain) {
                 toast.error("No available endpoint URLs");
                 return;
             }
 
             try {
-                // Just check if URL is reachable or 404 (valid)
                 const response = await fetch(`${remoteDomain}/${trimmed}`, {
                     method: "HEAD",
                     mode: "cors",
                 });
+                if (!response.ok && response.status !== 404) throw new Error();
 
-                if (!response.ok && response.status !== 404) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-
-                // Open the full URL directly in new tab — no blobs or fetch of body needed
                 window.open(`${remoteDomain}/${trimmed}`, "_blank");
-            } catch (error: any) {
+            } catch {
                 toast.error("Failed to open address from remote endpoint");
-                console.error(error);
             }
         }
     };
 
     const handleOpenDWebAddress = async () => {
+        const trimmed = cleanAddressInput(dWebAddress);
+
         if (selectedOption === "local") {
-            const path = dWebAddress.trim().replace(/^\/+/, "");
-            const trimmed = path.trim();
-
-            const baseUrl = `http://127.0.0.1:${dWebPort}/dweb-open/v/${trimmed}`;
-            window.open(baseUrl, "_blank");
-        } else {
-            const path = dWebAddress.trim().replace(/^\/+/, "");
-            const trimmed = path.trim();
-
-            if (!isValidXorname(trimmed)) {
-                toast.error("Invalid DWeb Autonomi address");
-                return;
-            }
-
-            const remoteEndpoint = await getBestRemoteEndpoint();
-
-            if (!remoteEndpoint) {
-                toast.error("No available endpoint URLs");
-                return;
-            }
-
-            try {
-                const response = await fetch(
-                    `${remoteEndpoint}/dweb-open/v/${trimmed}`
-                );
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-
-                const blob = await response.blob();
-                const objectUrl = URL.createObjectURL(blob);
-
-                window.open(objectUrl, "_blank");
-
-                setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
-            } catch (error: any) {
-                toast.error("Failed to open address from remote endpoint");
-                console.error(error);
-            }
+            const localUrl = `http://127.0.0.1:${dWebPort}/dweb-open/v/${trimmed}`;
+            window.open(localUrl, "_blank");
         }
     };
 
     if (view === "settings") {
-        return (
-            <SettingsView
-                onBack={() => {
-                    chrome.storage.local.get("connectionType", (result) => {
-                        console.log("THE RESULT IS: ", result);
-                    });
+        return <SettingsView onBack={() => setView("main")} />;
+    }
 
-                    setView("main");
-                }}
-            />
-        );
-    } else if (view === "upload") {
+    if (view === "upload") {
         return <UploadView onBack={() => setView("main")} />;
     }
 
     return (
         <div className="p-4 w-[300px] h-[370px] flex flex-col justify-between">
             <div>
-                {/* Open ANTTP Section */}
+                {/* AntTP Section */}
                 <div className="space-y-2">
                     <div className="flex items-center gap-2">
                         <hr className="flex-grow border-t" />
@@ -373,7 +191,6 @@ function App() {
                         </span>
                         <hr className="flex-grow border-t" />
                     </div>
-
                     <Input
                         placeholder="Enter AntTP address"
                         value={antTPAddress}
@@ -384,7 +201,7 @@ function App() {
                     </Button>
                 </div>
 
-                {/* Open DWeb Section */}
+                {/* DWeb Section */}
                 {selectedOption === "local" ? (
                     <div className="space-y-2 mt-4">
                         <div className="flex items-center gap-2">
@@ -394,7 +211,6 @@ function App() {
                             </span>
                             <hr className="flex-grow border-t" />
                         </div>
-
                         <Input
                             placeholder="Enter DWeb address"
                             value={dWebAddress}
@@ -408,7 +224,6 @@ function App() {
                         </Button>
                     </div>
                 ) : (
-                    // Empty div with same height to preserve spacing
                     <div className="space-y-2" style={{ height: "116px" }} />
                 )}
             </div>
@@ -422,16 +237,12 @@ function App() {
                     </span>
                     <hr className="flex-grow border-t" />
                 </div>
-
                 <div className="grid grid-cols-4 gap-2">
                     <Tooltip>
                         <TooltipTrigger asChild>
                             <Button
                                 variant="outline"
-                                className="w-full flex justify-center"
-                                onClick={() => {
-                                    setView("settings");
-                                }}
+                                onClick={() => setView("settings")}
                             >
                                 <Settings className="w-4 h-4" />
                             </Button>
@@ -445,7 +256,6 @@ function App() {
                         <TooltipTrigger asChild>
                             <Button
                                 variant="outline"
-                                className="w-full flex justify-center"
                                 onClick={() =>
                                     window.open(
                                         "https://autonomi.com",
@@ -465,7 +275,6 @@ function App() {
                         <TooltipTrigger asChild>
                             <Button
                                 variant="outline"
-                                className="w-full flex justify-center"
                                 onClick={() => setView("upload")}
                             >
                                 <Upload className="w-4 h-4" />
@@ -478,11 +287,7 @@ function App() {
 
                     <Tooltip>
                         <TooltipTrigger asChild>
-                            <Button
-                                variant="outline"
-                                className="w-full flex justify-center"
-                                onClick={() => {}}
-                            >
+                            <Button variant="outline" onClick={() => {}}>
                                 <Wallet className="w-4 h-4" />
                             </Button>
                         </TooltipTrigger>

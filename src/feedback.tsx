@@ -2,11 +2,7 @@ import ReactDOM from "react-dom/client";
 import { useEffect, useState } from "react";
 import { toast, Toaster } from "sonner";
 import "./tailwind.css"; // Ensure Tailwind is set up
-
-function isValidXorname(input: string): boolean {
-    const regex = /^[a-f0-9]{64}(\/[\w\-._~:@!$&'()*+,;=]+)*$/i;
-    return regex.test(input) && !input.includes("..");
-}
+import { isValidXorname } from "./utils";
 
 function FeedbackApp() {
     const [input, setInput] = useState("");

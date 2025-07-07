@@ -1,29 +1,12 @@
 const URLS_KEY = "endpointUrls";
 
-function transformWsUrlToAnttp(url) {
-    try {
-        const parsed = new URL(url);
-        // use https or http depending on wss/ws
-        let protocol = parsed.protocol === "wss:" ? "https:" : "http:";
-
-        let hostname = parsed.hostname;
-        // remove leading 'ws.' if present
-        if (hostname.startsWith("ws.")) {
-            hostname = hostname.slice(3);
-        }
-        // prepend 'anttp.' subdomain
-        hostname = `anttp.${hostname}`;
-
-        return `${protocol}//${hostname}`;
-    } catch {
-        return null;
-    }
-}
-
 function shouldInjectOnCurrentPage(endpointUrls) {
     if (!endpointUrls || !endpointUrls.length) return false;
 
-    const anttpUrls = endpointUrls.map(transformWsUrlToAnttp).filter(Boolean);
+    const anttpUrls = endpointUrls.flatMap((domain) => [
+        `https://anttp.${domain}`,
+        `http://anttp.${domain}`,
+    ]);
 
     const currentOrigin = window.location.origin;
 
