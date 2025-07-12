@@ -31,9 +31,13 @@ Once downloaded, unzip it. Inside the folder should be a folder called 'extensio
 
 You can now go to the extensions page in your chromium browser. You can reach this at either chrome://extensions or brave://extensions
 
-From here you need to enable developer mode.
+From here you need to enable developer mode:
 
-Then you can click the 'load unpacked' button to select extension folder.
+<img width="700" height="74" alt="dev-mode" src="https://github.com/user-attachments/assets/85607d4e-f1c1-454a-9a20-dc2e86dcf682" />
+
+Then you can click the 'load unpacked' button to select extension folder:
+
+<img width="700" height="74" alt="dev-mode-2" src="https://github.com/user-attachments/assets/8ca5f913-f94a-47bd-9a1e-b4accb02f37d" />
 
 This will load your extension into your browser.
 
