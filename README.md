@@ -1,7 +1,6 @@
 # Autonomi Chrome Extension
 
-<img width="1200" height="638" alt="main" src="https://github.com/user-attachments/assets/3032f316-99da-4c8c-b627-ba2cde08efa6" />
-
+<img width="1503" height="799" alt="main-3" src="https://github.com/user-attachments/assets/8e53023f-6be9-4a06-91ec-9cb8eb9e2a45" />
 
 
 You can read the documentation here: [https://safemedia.com](https://safemedia.com)
