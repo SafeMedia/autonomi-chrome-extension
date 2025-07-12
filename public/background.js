@@ -49,9 +49,24 @@ function handleUploadChunk(request, senderId, sendResponse) {
     const { name, chunkIndex, totalChunks, data, mime_type } =
         request.fileChunk;
 
-    //  store response callback only on first chunk
+    let uploadId = request.fileChunk.uploadId;
+    if (!uploadId) {
+        uploadId = `${name}-${Date.now()}-${Math.random()
+            .toString(36)
+            .slice(2)}`;
+    }
+
     if (chunkIndex === 0) {
-        pendingUploads.set(name, sendResponse);
+        pendingUploads.set(uploadId, sendResponse);
+
+        // timeout fallback
+        setTimeout(() => {
+            if (pendingUploads.has(uploadId)) {
+                const cb = pendingUploads.get(uploadId);
+                cb({ success: false, error: "Upload timed out." });
+                pendingUploads.delete(uploadId);
+            }
+        }, 30000); // 30s timeout
     }
 
     const metadata = {
@@ -61,6 +76,7 @@ function handleUploadChunk(request, senderId, sendResponse) {
             mime_type,
             chunk_index: chunkIndex,
             total_chunks: totalChunks,
+            upload_id: uploadId,
         },
         chunk: arrayBufferToBase64(data),
     };
@@ -74,7 +90,6 @@ function handleUploadChunk(request, senderId, sendResponse) {
         ensureSocketConnected();
     }
 
-    // keep port open until upload_complete received
     return true;
 }
 
@@ -89,9 +104,7 @@ function arrayBufferToBase64(buffer) {
 
 async function findFirstWorkingWebSocket(urls) {
     const tryConnect = (url) =>
-        new Promise() <
-        string >
-        ((resolve, reject) => {
+        new Promise((resolve, reject) => {
             const ws = new WebSocket(url);
             const timeout = setTimeout(() => {
                 ws.close();
@@ -112,7 +125,7 @@ async function findFirstWorkingWebSocket(urls) {
     const promises = urls.map(tryConnect);
 
     try {
-        return await Promise.any(promises); // resolves with first success
+        return await Promise.any(promises);
     } catch {
         return null;
     }
@@ -145,19 +158,19 @@ function initWebSocket() {
                 const rawDomains = Array.isArray(res.endpointUrls)
                     ? res.endpointUrls
                     : [];
+                const allDomains = rawDomains.length
+                    ? rawDomains
+                    : ["antsnest.site"];
 
-                const urls = rawDomains.flatMap((domain) => [
-                    `wss://ws.${domain}`,
-                    `ws://ws.${domain}`,
-                ]);
-                if (!urls.length) {
-                    notifyUser(
-                        "Endpoint Error",
-                        "⚠️ No endpoint server URLs found. Add some in the settings."
-                    );
-                    connecting = false;
-                    return;
+                // if endpoints url is empty, save default ones to it
+                if (!rawDomains.length) {
+                    chrome.storage.local.set({ endpointUrls: allDomains });
                 }
+
+                const urls = allDomains.flatMap((domain) => [
+                    `wss://ws.${domain}`,
+                    // `ws://ws.${domain}`,
+                ]);
 
                 wsUrl = await findFirstWorkingWebSocket(urls);
 
@@ -203,51 +216,22 @@ function initWebSocket() {
 
                         if (
                             parsed.type === "upload_complete" &&
-                            parsed.xorname &&
-                            parsed.filename
+                            parsed.upload_id &&
+                            parsed.xorname
                         ) {
-                            console.log("✅ Upload complete received:", parsed);
-                            const cb = pendingUploads.get(parsed.filename);
+                            console.log("✅ Upload complete:", parsed);
+                            const cb = pendingUploads.get(parsed.upload_id);
                             if (cb) {
                                 cb({ success: true, xorname: parsed.xorname });
-                                pendingUploads.delete(parsed.filename);
+                                pendingUploads.delete(parsed.upload_id);
                             }
                             return;
                         }
-                    } catch (e) {
-                        if (typeof event.data === "string") {
-                            try {
-                                const parsed = JSON.parse(event.data);
-
-                                if (
-                                    parsed.type === "upload_complete" &&
-                                    parsed.xorname &&
-                                    parsed.filename
-                                ) {
-                                    console.log(
-                                        "✅ Upload complete received:",
-                                        parsed
-                                    );
-                                    const cb = pendingUploads.get(
-                                        parsed.filename
-                                    );
-                                    if (cb) {
-                                        cb({
-                                            success: true,
-                                            xorname: parsed.xorname,
-                                        });
-                                        pendingUploads.delete(parsed.filename);
-                                    }
-                                    return;
-                                }
-                            } catch (e) {
-                                console.warn(
-                                    "⚠️ Received non-JSON string over socket:",
-                                    event.data
-                                );
-                            }
-                            return;
-                        }
+                    } catch {
+                        console.warn(
+                            "⚠️ Received non-JSON string:",
+                            event.data
+                        );
                     }
                     return;
                 }
@@ -275,16 +259,13 @@ function initWebSocket() {
                 );
 
                 const base64Data = arrayBufferToBase64(fileBytes);
-
                 const cb = pendingDownloads.get(xorname);
+
                 if (cb) {
                     cb({ success: true, base64: base64Data, mimeType });
                     pendingDownloads.delete(xorname);
                 } else {
-                    console.warn(
-                        "No pending callback found for xorname:",
-                        xorname
-                    );
+                    console.warn("No callback for xorname:", xorname);
                 }
             };
 
@@ -340,8 +321,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             request.action === "triggerSafeBoxClientUploadChunk" &&
             request.fileChunk
         ) {
-            handleUploadChunk(request, sender.id, sendResponse);
-            return true;
+            return handleUploadChunk(request, sender.id, sendResponse);
         }
 
         if (request.action === "fetchAntTPPort") {
@@ -354,7 +334,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 .catch((err) =>
                     sendResponse({ success: false, error: err.message })
                 );
-            return true; // important for async response
+            return true;
         }
 
         if (request.action === "getLocalPort") {
@@ -410,9 +390,6 @@ chrome.omnibox.onInputEntered.addListener((text) => {
                     );
                     const trimmed = text.replace(/^\/+/, "");
                     const baseURL = `http://127.0.0.1:${antTPPort}/${trimmed}`;
-
-                    console.log("Opening tab at:", baseURL);
-
                     chrome.tabs.create({ url: baseURL });
                 } catch (err) {
                     notifyUser(
@@ -424,18 +401,12 @@ chrome.omnibox.onInputEntered.addListener((text) => {
                 const rawDomains = Array.isArray(res.endpointUrls)
                     ? res.endpointUrls
                     : [];
+                const allDomains = rawDomains.length
+                    ? rawDomains
+                    : ["tester.com"];
 
-                if (!rawDomains.length) {
-                    notifyUser(
-                        "Endpoint Error",
-                        "⚠️ No endpoint server URLs found. Add some in the settings."
-                    );
-                    return;
-                }
-
-                // attempt HEAD request to find a responsive domain from endpoint urls
                 let bestDomain = null;
-                for (const baseDomain of rawDomains) {
+                for (const baseDomain of allDomains) {
                     const httpsUrl = `https://anttp.${baseDomain}`;
                     try {
                         const response = await fetch(`${httpsUrl}/`, {
@@ -462,7 +433,6 @@ chrome.omnibox.onInputEntered.addListener((text) => {
 
                 const trimmed = text.replace(/^\/+/, "");
                 const finalUrl = `https://anttp.${bestDomain}/${trimmed}`;
-                console.log("🌐 Opening tab at:", finalUrl);
                 chrome.tabs.create({ url: finalUrl });
             }
         }
