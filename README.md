@@ -52,6 +52,10 @@ Once pinned it will stay in place:
 
 <img width="213" height="95" alt="pin-result" src="https://github.com/user-attachments/assets/bb62d9da-cbae-41ed-b827-beaf851211dc" />
 
+Now that the extension is installed, you can open it by clicking on the Autonomi extension in the top right of the brwoser page:
+
+<img width="280" height="368" alt="extension-default" src="https://github.com/user-attachments/assets/dad3f122-de6a-464f-b01f-d023eea655c9" />
+
 If you want to try out the network, here are some Autonomi URLs. You can paste them into the extension search.
 
 image: 
