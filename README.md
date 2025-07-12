@@ -40,7 +40,19 @@ Then you can click the 'load unpacked' button to select extension folder:
 
 This will load your extension into your browser.
 
-If you want to try out some files, here are some Autonomi URLs. You can paste them into the Autonomi searchbar.
+You should now see the following in your extensions page:
+
+<img width="418" height="226" alt="extension-info" src="https://github.com/user-attachments/assets/235eabb2-153b-4f1e-8861-8571948903ac" />
+
+You can now click the Autonomi extension at the top right of your browser to interact with the network. You can pin the extension for easy access.
+
+<img width="370" height="263" alt="pin" src="https://github.com/user-attachments/assets/2f95d1ec-705b-42bd-8417-572002ae3089" />
+
+Once pinned it will stay in place:
+
+<img width="213" height="95" alt="pin-result" src="https://github.com/user-attachments/assets/bb62d9da-cbae-41ed-b827-beaf851211dc" />
+
+If you want to try out the network, here are some Autonomi URLs. You can paste them into the extension search.
 
 image: 
 ```bash
