@@ -41,7 +41,7 @@ Then you can click the 'load unpacked' button to select extension folder:
 
 This will load your extension into your browser.
 
-If you want to try out some files, here are some Autonomi URLs:
+If you want to try out some files, here are some Autonomi URLs. You can paste them into the Autonomi searchbar.
 
 image: 
 ```bash
