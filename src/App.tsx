@@ -27,8 +27,8 @@ function App() {
     const [dWebAddress, setDWebAddress] = useState("");
     const [selectedOption, setSelectedOption] = useState("");
 
-    const [antTPPort, setAntTPPort] = useState(8082);
-    const [dWebPort, setDWebPort] = useState(8083);
+    const [antTPPort, setAntTPPort] = useState(18888);
+    const [dWebPort, setDWebPort] = useState(5537);
     const [urls, setUrls] = useState<string[]>([]);
 
     useEffect(() => {
