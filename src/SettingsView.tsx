@@ -306,7 +306,7 @@ export default function SettingsView({ onBack }: { onBack: () => void }) {
 
             <div className="pt-2 text-center">
                 <span className="text-[12px] text-muted-foreground">
-                    version: 0.1.2
+                    version: 0.1.3
                 </span>
             </div>
         </div>
