@@ -1,25 +1,30 @@
-import * as React from "react"
+import * as React from "react";
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
 export interface InputProps
-  extends React.InputHTMLAttributes<HTMLInputElement> {}
+    extends React.InputHTMLAttributes<HTMLInputElement> {}
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type, ...props }, ref) => {
-    return (
-      <input
-        type={type}
-        className={cn(
-          "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
-          className
-        )}
-        ref={ref}
-        {...props}
-      />
-    )
-  }
-)
-Input.displayName = "Input"
+    ({ className, type, ...props }, ref) => {
+        return (
+            <input
+                type={type}
+                className={cn(
+                    "block w-full h-9 bg-white text-black text-sm px-0 file:mr-0", // remove padding so file button aligns better
+                    "appearance-none", // reset default browser styles
+                    "border border-gray-300 rounded-md overflow-hidden", // shared border for input
+                    // File selector styling
+                    "file:bg-black file:text-white file:border-0 file:rounded-none file:px-4 file:py-1 file:mr-3 file:h-full file:cursor-pointer",
+                    "focus:outline-none focus:ring-1 focus:ring-blue-500",
+                    className
+                )}
+                ref={ref}
+                {...props}
+            />
+        );
+    }
+);
+Input.displayName = "Input";
 
-export { Input }
+export { Input };

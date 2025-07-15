@@ -4,73 +4,51 @@ function isValidSafePath(input) {
     return SAFE_PATH_REGEX.test(input) && !input.includes("..");
 }
 
-const LOCAL_PORT_KEY = "localClientPort";
-
-const fileChunks = {};
-let socket;
-let socketReady = false;
-let pendingChunks = [];
-let retryDelay = 2000;
-let currentConnectionType = null;
-let connecting = false;
-const pendingDownloads = new Map();
 const pendingUploads = new Map();
+const pendingDownloads = new Map();
+const pendingChunks = [];
 
-async function directlyFetchAntTPPort(localPort) {
-    const res = await fetch(`http://127.0.0.1:${localPort}/getAntTPPort`);
-    const data = await res.json();
-    return data.port;
-}
-
-chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName === "local" && changes.connectionType) {
-        console.log(
-            "🔄 connectionType changed:",
-            changes.connectionType.newValue
-        );
-        initWebSocket();
-    }
-});
-
-function ensureSocketConnected() {
-    chrome.storage.local.get(["connectionType"], (res) => {
-        const selectedOption = res.connectionType || "local";
-        if (
-            !socket ||
-            socket.readyState > 1 ||
-            currentConnectionType !== selectedOption
-        ) {
-            initWebSocket();
-        }
-    });
-}
+let socket = null;
+let socketReady = false;
+let currentConnectionType = null;
+let retryDelay = 2000;
+let connecting = false;
 
 function handleUploadChunk(request, senderId, sendResponse) {
-    const { name, chunkIndex, totalChunks, data, mime_type } =
+    const { name, chunkIndex, totalChunks, data, mime_type, upload_id } =
         request.fileChunk;
 
-    let uploadId = request.fileChunk.uploadId;
-    if (!uploadId) {
-        uploadId = `${name}-${Date.now()}-${Math.random()
-            .toString(36)
-            .slice(2)}`;
-    }
+    const uploadId =
+        upload_id ||
+        `${name}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    console.log(
+        `📦 Handling chunk ${
+            chunkIndex + 1
+        }/${totalChunks} — Upload ID: ${uploadId}`
+    );
 
+    // Only register callback and timeout for the first chunk
     if (chunkIndex === 0) {
         pendingUploads.set(uploadId, sendResponse);
 
-        // timeout fallback
         setTimeout(() => {
             if (pendingUploads.has(uploadId)) {
                 const cb = pendingUploads.get(uploadId);
-                cb({ success: false, error: "Upload timed out." });
+                console.error(`[❌ Upload Timeout] uploadId=${uploadId}`);
+                cb({
+                    success: false,
+                    error: "Upload timed out after 3 minutes.",
+                });
                 pendingUploads.delete(uploadId);
             }
-        }, 30000); // 30s timeout
+        }, 180000); // 3 minutes
+    } else {
+        // For all other chunks, respond immediately
+        sendResponse({ success: true });
     }
 
-    const metadata = {
-        type: "upload",
+    const chunkMessage = {
+        type: "upload_chunk",
         metadata: {
             filename: name,
             mime_type,
@@ -78,28 +56,55 @@ function handleUploadChunk(request, senderId, sendResponse) {
             total_chunks: totalChunks,
             upload_id: uploadId,
         },
-        chunk: arrayBufferToBase64(data),
+        data,
     };
 
-    const jsonMessage = JSON.stringify(metadata);
-
-    if (socketReady && socket.readyState === WebSocket.OPEN) {
-        socket.send(jsonMessage);
-    } else {
-        pendingChunks.push(jsonMessage);
+    if (!socketReady || socket.readyState !== WebSocket.OPEN) {
+        console.log("⏳ Socket not ready — queuing chunk");
+        pendingChunks.push(chunkMessage);
         ensureSocketConnected();
+        return true;
     }
 
-    return true;
+    socket.send(JSON.stringify(chunkMessage));
+    console.log("✅ Chunk sent via WebSocket");
+
+    return true; // async response
 }
 
-function arrayBufferToBase64(buffer) {
-    let binary = "";
-    const bytes = new Uint8Array(buffer);
-    for (let i = 0; i < bytes.length; i++) {
-        binary += String.fromCharCode(bytes[i]);
+function flushPendingChunks() {
+    if (!socketReady || socket.readyState !== WebSocket.OPEN) return;
+
+    console.log(`🚀 Flushing ${pendingChunks.length} queued chunks`);
+    while (pendingChunks.length > 0) {
+        const chunk = pendingChunks.shift();
+        socket.send(JSON.stringify(chunk));
     }
-    return btoa(binary);
+}
+
+function ensureSocketConnected() {
+    chrome.storage.local.get(["connectionType"], (res) => {
+        const selected = res.connectionType || "local";
+        if (
+            !socket ||
+            socket.readyState > 1 ||
+            currentConnectionType !== selected
+        ) {
+            initWebSocket();
+        }
+    });
+}
+
+function displayUploadError(message) {
+    const errorContainer = document.getElementById("upload-error-container");
+    if (errorContainer) {
+        const errorElem = document.createElement("div");
+        errorElem.textContent = `❌ ${message}`;
+        errorElem.style.color = "red";
+        errorContainer.appendChild(errorElem);
+    } else {
+        console.error("Upload error:", message);
+    }
 }
 
 async function findFirstWorkingWebSocket(urls) {
@@ -110,7 +115,6 @@ async function findFirstWorkingWebSocket(urls) {
                 ws.close();
                 reject(new Error("Timeout"));
             }, 4000);
-
             ws.onopen = () => {
                 clearTimeout(timeout);
                 ws.close();
@@ -122,10 +126,8 @@ async function findFirstWorkingWebSocket(urls) {
             };
         });
 
-    const promises = urls.map(tryConnect);
-
     try {
-        return await Promise.any(promises);
+        return await Promise.any(urls.map(tryConnect));
     } catch {
         return null;
     }
@@ -138,59 +140,34 @@ function initWebSocket() {
     chrome.storage.local.get(
         ["connectionType", "endpointUrls", "localClientPort"],
         async (res) => {
-            const selectedOption = res.connectionType || "local";
-
-            if (
-                selectedOption === currentConnectionType &&
-                socket?.readyState <= 1
-            ) {
+            const selected = res.connectionType || "local";
+            if (selected === currentConnectionType && socket?.readyState <= 1) {
                 connecting = false;
                 return;
             }
 
-            if (socket?.readyState <= 1) {
-                socket.close();
-            }
+            if (socket?.readyState <= 1) socket.close();
 
             let wsUrl = null;
-
-            if (selectedOption === "endpoints") {
-                const rawDomains = Array.isArray(res.endpointUrls)
-                    ? res.endpointUrls
-                    : [];
-                const allDomains = rawDomains.length
-                    ? rawDomains
-                    : ["antsnest.site"];
-
-                // if endpoints url is empty, save default ones to it
-                if (!rawDomains.length) {
-                    chrome.storage.local.set({ endpointUrls: allDomains });
-                }
-
-                const urls = allDomains.flatMap((domain) => [
-                    `wss://ws.${domain}`,
-                    // `ws://ws.${domain}`,
-                ]);
-
+            if (selected === "endpoints") {
+                const urls = (res.endpointUrls || ["antsnest.site"]).flatMap(
+                    (domain) => [`wss://ws.${domain}`]
+                );
                 wsUrl = await findFirstWorkingWebSocket(urls);
-
                 if (!wsUrl) {
                     notifyUser(
                         "Endpoint Error",
-                        "❌ No endpoint URLs could connect. Check their status."
+                        "❌ No working endpoint found."
                     );
                     connecting = false;
                     return;
                 }
-            } else if (selectedOption === "local") {
-                const port = res.localClientPort || 8081;
-                wsUrl = `ws://localhost:${port}`;
             } else {
-                connecting = false;
-                return;
+                const port = res.localClientPort || 8084;
+                wsUrl = `ws://localhost:${port}/upload-ws`;
             }
 
-            currentConnectionType = selectedOption;
+            currentConnectionType = selected;
             socket = new WebSocket(wsUrl);
             socket.binaryType = "arraybuffer";
 
@@ -198,9 +175,7 @@ function initWebSocket() {
                 socketReady = true;
                 retryDelay = 2000;
                 connecting = false;
-
-                pendingChunks.forEach((chunk) => socket.send(chunk));
-                pendingChunks = [];
+                flushPendingChunks();
 
                 for (const [xorname] of pendingDownloads) {
                     socket.send(
@@ -219,27 +194,33 @@ function initWebSocket() {
                             parsed.upload_id &&
                             parsed.xorname
                         ) {
-                            console.log("✅ Upload complete:", parsed);
                             const cb = pendingUploads.get(parsed.upload_id);
                             if (cb) {
                                 cb({ success: true, xorname: parsed.xorname });
                                 pendingUploads.delete(parsed.upload_id);
                             }
-                            return;
+
+                            chrome.runtime.sendMessage({
+                                action: "uploadComplete",
+                                upload_id: parsed.upload_id,
+                                xorname: parsed.xorname,
+                            });
+                        } else if (
+                            parsed.type === "upload_error" &&
+                            parsed.message
+                        ) {
+                            displayUploadError(parsed.message);
                         }
                     } catch {
-                        console.warn(
-                            "⚠️ Received non-JSON string:",
-                            event.data
-                        );
+                        console.warn("⚠️ Non-JSON message:", event.data);
                     }
                     return;
                 }
 
-                const data = event.data;
                 const arrayBuffer =
-                    data instanceof Blob ? await data.arrayBuffer() : data;
-
+                    event.data instanceof Blob
+                        ? await event.data.arrayBuffer()
+                        : event.data;
                 const view = new DataView(arrayBuffer);
                 const metadataLength = view.getUint32(0);
                 const metadataBytes = new Uint8Array(
@@ -249,34 +230,29 @@ function initWebSocket() {
                 );
                 const metadataText = new TextDecoder().decode(metadataBytes);
                 const metadata = JSON.parse(metadataText);
-
+                const xorname = metadata.xorname;
                 const mimeType =
                     metadata.mimeType || "application/octet-stream";
-                const xorname = metadata.xorname;
                 const fileBytes = new Uint8Array(
                     arrayBuffer,
                     4 + metadataLength
                 );
-
                 const base64Data = arrayBufferToBase64(fileBytes);
-                const cb = pendingDownloads.get(xorname);
 
+                const cb = pendingDownloads.get(xorname);
                 if (cb) {
                     cb({ success: true, base64: base64Data, mimeType });
                     pendingDownloads.delete(xorname);
-                } else {
-                    console.warn("No callback for xorname:", xorname);
                 }
             };
 
-            socket.onerror = (error) => {
-                console.error("WebSocket error:", error);
+            socket.onerror = (err) => {
+                console.error("WebSocket error:", err);
             };
 
             socket.onclose = () => {
                 socketReady = false;
                 connecting = false;
-
                 chrome.storage.local.get(["connectionType"], (res2) => {
                     if (res2.connectionType === currentConnectionType) {
                         setTimeout(initWebSocket, retryDelay);
@@ -297,13 +273,22 @@ function notifyUser(title, message) {
     chrome.tabs.create({ url });
 }
 
+function arrayBufferToBase64(buffer) {
+    let binary = "";
+    const bytes = new Uint8Array(buffer);
+    for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+}
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     try {
         if (
             request.action === "triggerSafeBoxClientDownload" &&
             isValidSafePath(request.xorname)
         ) {
-            const { xorname } = request;
+            const xorname = request.xorname;
             pendingDownloads.set(xorname, sendResponse);
 
             if (socketReady && socket.readyState === WebSocket.OPEN) {
@@ -313,7 +298,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             } else {
                 ensureSocketConnected();
             }
-
             return true;
         }
 
@@ -346,9 +330,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
         if (request.action === "openAndClose" && request.url) {
             chrome.tabs.create({ url: request.url }, () => {
-                if (sender.tab && sender.tab.id) {
-                    chrome.tabs.remove(sender.tab.id);
-                }
+                if (sender.tab?.id) chrome.tabs.remove(sender.tab.id);
             });
         }
 
@@ -358,83 +340,4 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse({ success: false, error: err.message || String(err) });
         return false;
     }
-});
-
-chrome.runtime.onMessageExternal.addListener(
-    (request, sender, sendResponse) => {
-        return chrome.runtime.onMessage.hasListeners
-            ? chrome.runtime.onMessage.call(null, request, sender, sendResponse)
-            : false;
-    }
-);
-
-chrome.omnibox.onInputEntered.addListener((text) => {
-    chrome.storage.local.get(
-        ["connectionType", "endpointUrls", "localClientPort"],
-        async (res) => {
-            const selectedOption = res.connectionType || "local";
-            const localClientPort = res.localClientPort || 8084;
-
-            if (!isValidSafePath(text)) {
-                notifyUser(
-                    "Invalid Address",
-                    "The input is not a valid Autonomi address."
-                );
-                return;
-            }
-
-            if (selectedOption === "local") {
-                try {
-                    const antTPPort = await directlyFetchAntTPPort(
-                        localClientPort
-                    );
-                    const trimmed = text.replace(/^\/+/, "");
-                    const baseURL = `http://127.0.0.1:${antTPPort}/${trimmed}`;
-                    chrome.tabs.create({ url: baseURL });
-                } catch (err) {
-                    notifyUser(
-                        "Error",
-                        "Could not resolve AntTP port: " + err.message
-                    );
-                }
-            } else if (selectedOption === "endpoints") {
-                const rawDomains = Array.isArray(res.endpointUrls)
-                    ? res.endpointUrls
-                    : [];
-                const allDomains = rawDomains.length
-                    ? rawDomains
-                    : ["tester.com"];
-
-                let bestDomain = null;
-                for (const baseDomain of allDomains) {
-                    const httpsUrl = `https://anttp.${baseDomain}`;
-                    try {
-                        const response = await fetch(`${httpsUrl}/`, {
-                            method: "HEAD",
-                            mode: "cors",
-                        });
-
-                        if (response.ok || response.status === 404) {
-                            bestDomain = baseDomain;
-                            break;
-                        }
-                    } catch (err) {
-                        console.warn(`❌ Failed to reach ${httpsUrl}`, err);
-                    }
-                }
-
-                if (!bestDomain) {
-                    notifyUser(
-                        "Connection Failed",
-                        "Could not connect to any endpoint servers."
-                    );
-                    return;
-                }
-
-                const trimmed = text.replace(/^\/+/, "");
-                const finalUrl = `https://anttp.${bestDomain}/${trimmed}`;
-                chrome.tabs.create({ url: finalUrl });
-            }
-        }
-    );
 });

@@ -8,7 +8,6 @@ import {
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
 import SettingsView from "./SettingsView";
-import UploadView from "./UploadView";
 import { toast } from "sonner";
 import { isValidXorname } from "./utils";
 
@@ -175,10 +174,6 @@ function App() {
         return <SettingsView onBack={() => setView("main")} />;
     }
 
-    if (view === "upload") {
-        return <UploadView onBack={() => setView("main")} />;
-    }
-
     return (
         <div className="p-4 w-[300px] h-[370px] flex flex-col justify-between">
             <div>
@@ -275,7 +270,16 @@ function App() {
                         <TooltipTrigger asChild>
                             <Button
                                 variant="outline"
-                                onClick={() => setView("upload")}
+                                disabled={selectedOption !== "local"}
+                                onClick={() => {
+                                    if (selectedOption === "local") {
+                                        chrome.tabs.create({
+                                            url: chrome.runtime.getURL(
+                                                "upload.html"
+                                            ),
+                                        });
+                                    }
+                                }}
                             >
                                 <Upload className="w-4 h-4" />
                             </Button>

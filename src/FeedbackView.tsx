@@ -4,7 +4,7 @@ import { toast, Toaster } from "sonner";
 import "./tailwind.css"; // Ensure Tailwind is set up
 import { isValidXorname } from "./utils";
 
-function FeedbackApp() {
+function FeedbackView() {
     const [input, setInput] = useState("");
     const [title, setTitle] = useState("Feedback");
     const [message, setMessage] = useState("");
@@ -88,4 +88,4 @@ function FeedbackApp() {
     );
 }
 
-ReactDOM.createRoot(document.getElementById("root")!).render(<FeedbackApp />);
+ReactDOM.createRoot(document.getElementById("root")!).render(<FeedbackView />);

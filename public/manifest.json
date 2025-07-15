@@ -79,7 +79,7 @@
                 "inject.js",
                 "inject-endpoint.html",
                 "inject-endpoint.js",
-                "feedback.js"
+                "upload.html"
             ],
             "matches": ["<all_urls>"]
         }

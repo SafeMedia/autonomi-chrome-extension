@@ -15,6 +15,7 @@ export default defineConfig({
         rollupOptions: {
             input: {
                 feedback: resolve(__dirname, "feedback.html"),
+                upload: resolve(__dirname, "upload.html"),
                 main: resolve(__dirname, "index.html"),
             },
         },

@@ -1,202 +1,236 @@
-"use client";
+import React, { useState, useEffect, useRef } from "react";
+import { createRoot } from "react-dom/client";
+import "./tailwind.css"; // Ensure Tailwind is set up
+import { Button } from "./components/ui/button";
+import { Input } from "./components/ui/input";
 
-import { useEffect, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { ArrowLeft, FolderSearch, Upload, Info } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { toast } from "sonner";
+const UploadView = () => {
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [uploadId, setUploadId] = useState<string | null>(null);
+    const [chunkIndex, setChunkIndex] = useState(0);
+    const [_totalChunks, setTotalChunks] = useState(0);
+    const [status, setStatus] = useState<string>("");
+    const [errors, setErrors] = useState<string[]>([]);
+    const [isUploading, setIsUploading] = useState(false);
 
-const STORAGE_KEY = "connectionType";
-const CHUNK_SIZE = 1024 * 1024; // 1MB
-
-export default function UploadView({ onBack }: { onBack: () => void }) {
-    const [files, setFiles] = useState<File[]>([]);
-    const [uploading, setUploading] = useState(false);
-    const [mode, setMode] = useState<"local" | "endpoints" | null>(null);
-    const fileInputRef = useRef<HTMLInputElement | null>(null);
+    const CHUNK_SIZE = 1024 * 1024; // 1MB
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        chrome.storage.local.get([STORAGE_KEY], (res) => {
-            const connection = res[STORAGE_KEY];
-            if (connection === "local" || connection === "endpoints") {
-                setMode(connection);
-            }
-        });
-    }, []);
+        if (!uploadId) return;
 
-    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const fileList = e.target.files;
-        if (fileList && fileList.length > 0) {
-            const fileArray = Array.from(fileList);
-            setFiles(fileArray);
-        }
+        const onMessage = (message: any) => {
+            if (
+                message.action === "uploadComplete" &&
+                message.upload_id === uploadId
+            ) {
+                setStatus(`${message.xorname}`);
+                setErrors([]);
+                setIsUploading(false);
+
+                // Clear selected file and input
+                setSelectedFile(null);
+                if (fileInputRef.current) {
+                    fileInputRef.current.value = "";
+                }
+
+                chrome.runtime.onMessage.removeListener(onMessage);
+            } else if (
+                message.action === "uploadError" &&
+                message.upload_id === uploadId
+            ) {
+                setErrors((prev) => [...prev, `❌ ${message.error}`]);
+                setIsUploading(false);
+            }
+        };
+
+        chrome.runtime.onMessage.addListener(onMessage);
+        return () => chrome.runtime.onMessage.removeListener(onMessage);
+    }, [uploadId]);
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0] || null;
+        setSelectedFile(file);
+        setStatus("");
+        setErrors([]);
+        setChunkIndex(0);
+        setUploadId(null);
     };
 
-    const uploadFile = async (file: File): Promise<string | null> => {
-        const arrayBuffer = await file.arrayBuffer();
-        const uint8Array = new Uint8Array(arrayBuffer);
-        const totalChunks = Math.ceil(uint8Array.length / CHUNK_SIZE);
-        const relativePath = (file as any).webkitRelativePath || file.name;
+    const uint8ArrayToBase64 = (u8Arr: Uint8Array) => {
+        let result = "";
+        const CHUNK_SIZE = 0x8000;
+        for (let i = 0; i < u8Arr.length; i += CHUNK_SIZE) {
+            const chunk = u8Arr.subarray(i, i + CHUNK_SIZE);
+            let chunkStr = "";
+            for (let j = 0; j < chunk.length; j++) {
+                chunkStr += String.fromCharCode(chunk[j]);
+            }
+            result += chunkStr;
+        }
+        return btoa(result);
+    };
 
-        let xorname: string | null = null;
+    const readNextChunk = (
+        file: File,
+        index: number,
+        _total: number,
+        _id: string,
+        reader: FileReader
+    ) => {
+        const start = index * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, file.size);
+        const blob = file.slice(start, end);
+        reader.readAsArrayBuffer(blob);
+    };
 
-        for (let index = 0; index < totalChunks; index++) {
-            const start = index * CHUNK_SIZE;
-            const end = Math.min(start + CHUNK_SIZE, uint8Array.length);
-            const chunk = uint8Array.slice(start, end);
+    const sendChunk = (
+        chunk: Uint8Array,
+        index: number,
+        total: number,
+        file: File,
+        id: string
+    ) => {
+        return new Promise<void>((resolve, reject) => {
+            const base64Chunk = uint8ArrayToBase64(chunk);
 
-            await new Promise<void>((resolve) => {
-                const message = {
+            chrome.runtime.sendMessage(
+                {
                     action: "triggerSafeBoxClientUploadChunk",
                     fileChunk: {
-                        name: relativePath,
-                        mime_type: file.type || "application/octet-stream",
+                        name: file.name,
+                        mime_type: file.type,
                         chunkIndex: index,
-                        totalChunks,
-                        data: chunk.buffer,
+                        totalChunks: total,
+                        data: base64Chunk,
+                        upload_id: id,
                     },
-                };
+                },
+                (response) => {
+                    if (chrome.runtime.lastError) {
+                        reject(new Error(chrome.runtime.lastError.message));
+                        return;
+                    }
 
-                // Only wait for a response on the **last** chunk
-                if (index === totalChunks - 1) {
-                    chrome.runtime.sendMessage(message, (response) => {
-                        if (chrome.runtime.lastError) {
-                            toast.error("Extension not responding.");
+                    if (index === 0) {
+                        if (response?.success) {
+                            setStatus(
+                                `📤 Uploaded chunk ${index + 1}/${total}`
+                            );
                             resolve();
-                            return;
+                        } else {
+                            reject(
+                                new Error(response?.error || "Unknown error")
+                            );
                         }
-
-                        if (!response?.success) {
-                            toast.error(`Failed to upload ${relativePath}`);
-                        } else if (response.xorname) {
-                            xorname = response.xorname;
-                        }
-
+                    } else {
+                        setStatus(`📤 Uploaded chunk ${index + 1}/${total}`);
                         resolve();
-                    });
-                } else {
-                    // Don't wait for response, just send
-                    chrome.runtime.sendMessage(message);
-                    resolve();
+                    }
                 }
-            });
-        }
-
-        return xorname;
+            );
+        });
     };
 
-    const handleUpload = async () => {
-        if (!files.length || uploading) return;
+    const handleUpload = () => {
+        if (!selectedFile || isUploading) return;
 
-        setUploading(true);
+        setIsUploading(true);
+        const file = selectedFile;
+        const total = Math.ceil(file.size / CHUNK_SIZE);
+        const id = `${file.name}-${Date.now()}-${Math.random()
+            .toString(36)
+            .slice(2)}`;
+        const reader = new FileReader();
 
-        try {
-            const xornames: string[] = [];
+        setTotalChunks(total);
+        setUploadId(id);
+        setChunkIndex(0);
+        setStatus("🔄 Starting upload...");
 
-            for (const file of files) {
-                const xorname = await uploadFile(file);
-                if (xorname) xornames.push(xorname);
+        reader.onload = async () => {
+            const buffer = reader.result as ArrayBuffer;
+            const chunk = new Uint8Array(buffer);
+            try {
+                await sendChunk(chunk, chunkIndex, total, file, id);
+            } catch (err: any) {
+                setStatus(
+                    `❌ Error on chunk ${chunkIndex + 1}: ${err.message}`
+                );
+                setIsUploading(false);
+                return;
             }
 
-            toast.success("Upload started", {
-                description: "Upload request received by client. Please wait.",
-            });
-
-            if (files.length === 1 && xornames.length === 1) {
-                toast.success("Upload complete", {
-                    description: `XOR name: ${xornames[0]}`,
-                });
+            const nextIndex = chunkIndex + 1;
+            setChunkIndex(nextIndex);
+            if (nextIndex < total) {
+                readNextChunk(file, nextIndex, total, id, reader);
+            } else {
+                setStatus("📦 Final chunk sent. Waiting for confirmation...");
             }
-        } catch (err) {
-            toast.error("Upload failed", {
-                description: (err as Error).message || "Unexpected error",
-            });
-        } finally {
-            setUploading(false);
-        }
+        };
+
+        reader.onerror = () => {
+            setStatus(`❌ File read error: ${reader.error?.message}`);
+            setIsUploading(false);
+        };
+
+        readNextChunk(file, 0, total, id, reader);
     };
 
     return (
-        <div className="p-4 w-[300px] h-[370px] flex flex-col space-y-2 overflow-hidden">
-            <div className="flex items-center">
-                <Button
-                    variant="outline"
-                    className="mr-2"
-                    onClick={onBack}
-                    title="Back"
-                >
-                    <ArrowLeft className="w-4 h-4" />
-                </Button>
-                <h1 className="absolute left-1/2 transform -translate-x-1/2 text-lg font-semibold">
-                    Upload
+        <div className="min-h-screen flex items-start justify-center bg-gray-100 p-6">
+            <div className="bg-white rounded-2xl shadow-md p-6 w-full md:w-4/5 max-w-none">
+                <h1 className="text-2xl font-semibold mb-4">
+                    Autonomi File Upload
                 </h1>
-            </div>
 
-            <div className="flex items-center gap-2">
-                <hr className="flex-grow border-t" />
-                <span className="text-xs text-muted-foreground">
-                    Upload Files
-                </span>
-                <hr className="flex-grow border-t" />
-            </div>
-
-            {mode === "local" ? (
-                <div className="space-y-2">
-                    <div className="flex">
-                        <Button
-                            variant="outline"
-                            onClick={() => fileInputRef.current?.click()}
-                            title="Select Files or Folder"
-                            className="rounded-r-none"
-                            disabled={uploading}
-                        >
-                            <FolderSearch className="w-4 h-4 mr-2" />
-                            Browse
-                        </Button>
-                        <Input
-                            value={
-                                files.length === 0
-                                    ? ""
-                                    : files.length === 1
-                                    ? files[0].name
-                                    : `${files.length} files selected`
-                            }
-                            readOnly
-                            placeholder="No file/folder selected"
-                            className="rounded-l-none"
-                            disabled={uploading}
-                        />
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            multiple={true}
-                            onChange={handleFileSelect}
-                            className="hidden"
-                        />
-                    </div>
-
-                    <Button
-                        className="w-full"
-                        onClick={handleUpload}
-                        disabled={!files.length || uploading}
-                    >
-                        <Upload className="w-4 h-4 mr-2" />
-                        {uploading ? "Uploading..." : "Upload"}
-                    </Button>
+                <Input
+                    type="file"
+                    onChange={handleFileChange}
+                    className="mb-2 w-full md:w-[20%]"
+                    ref={fileInputRef}
+                    disabled={isUploading}
+                />
+                <div className="text-sm text-gray-500 mb-4">
+                    {selectedFile ? selectedFile.name : "No file selected"}
                 </div>
-            ) : mode === "endpoints" ? (
-                <Card>
-                    <CardContent className="p-4 text-sm flex items-start gap-2 text-muted-foreground">
-                        <Info className="w-4 h-4 mt-0.5 text-blue-500" />
-                        <span>
-                            Uploading is only available via the{" "}
-                            <strong>local client</strong>. You can configure
-                            this in the settings panel.
-                        </span>
-                    </CardContent>
-                </Card>
-            ) : null}
+
+                <Button
+                    onClick={handleUpload}
+                    disabled={!selectedFile || isUploading}
+                    className={`py-2 rounded-lg text-white text-base font-medium transition ${
+                        selectedFile && !isUploading
+                            ? "bg-blue-700 hover:bg-blue-800"
+                            : "bg-blue-900 cursor-not-allowed"
+                    }`}
+                >
+                    {isUploading ? "Uploading..." : "Upload"}
+                </Button>
+
+                {errors.length > 0 && (
+                    <div className="mt-4 text-red-600 text-sm space-y-1">
+                        {errors.map((err, i) => (
+                            <div key={i}>{err}</div>
+                        ))}
+                    </div>
+                )}
+
+                {status && (
+                    <div
+                        className="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-800 whitespace-pre-wrap overflow-y-auto"
+                        style={{ height: "calc(100vh - 260px - 1.5rem)" }}
+                    >
+                        {status}
+                    </div>
+                )}
+            </div>
         </div>
     );
+};
+
+const container = document.getElementById("root");
+if (container) {
+    const root = createRoot(container);
+    root.render(<UploadView />);
 }
