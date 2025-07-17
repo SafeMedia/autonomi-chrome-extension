@@ -112,6 +112,10 @@ Once you enter a valid Autonomi url and hit browse you will see:
 
 You can change the mode by going to the settings page on the Extension. There you will see which mode is currently enabled, either Endpoints Servers or Local Client. You can use the dropdown to change the mode.
 
+### Run your own endpoint server
+
+If you wish to contribute to the network, you can run your own endpoint server and let people using the extension use it! Just follow along here: https://github.com/SafeMedia/safebox-server
+
 
 ## Local Mode
 
