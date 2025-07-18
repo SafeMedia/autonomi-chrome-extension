@@ -256,6 +256,12 @@ When detected it will be replaced with the content. You can change the url, file
 
 If you are currently using the extension, the shortcode above will be replaced with an image.
 
+Here are some more examples:
+
+autocode,91d16e58e9164bccd29a8fd8d25218a61d8253b51c26119791b2633ff4f6b309/to-autonomi.mp4,mp4,800,500
+
+autocode,48bd835e4eef2631c66a840904a5cc114ca2403f2aa63b3d00aa789f6f1f2632/george_orwell.pdf,pdf,800,500
+
 ## Developers
 
 If you want to contribute to the development of the extension, you can check to see if there are any issues at: [Issues](https://github.com/SafeMedia/autonomi-chrome-extension/issues)
