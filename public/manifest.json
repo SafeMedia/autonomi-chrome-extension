@@ -80,6 +80,7 @@
             "resources": [
                 "images/header-light.png",
                 "feedback.html",
+                "viewer.html",
                 "inject.html",
                 "inject.js",
                 "inject-endpoint.html",

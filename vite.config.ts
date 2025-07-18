@@ -17,6 +17,7 @@ export default defineConfig({
                 feedback: resolve(__dirname, "feedback.html"),
                 upload: resolve(__dirname, "upload.html"),
                 main: resolve(__dirname, "index.html"),
+                viewer: resolve(__dirname, "viewer.html"),
             },
         },
     },

@@ -11,8 +11,14 @@ function parseAutonomiCode(code) {
     };
 }
 
-function createElementForFile({ ext, url, width, height }) {
+function createElementForFile({ xorname = null, ext, url, width, height }) {
     const imgExts = ["jpg", "jpeg", "png", "gif", "webp"];
+    const videoExts = ["mp4", "webm", "ogg"];
+    const audioExts = ["mp3", "wav", "ogg"];
+    const pdfExts = ["pdf"];
+
+    ext = ext.toLowerCase();
+
     if (imgExts.includes(ext)) {
         const img = document.createElement("img");
         img.src = url;
@@ -22,10 +28,48 @@ function createElementForFile({ ext, url, width, height }) {
         return img;
     }
 
-    // Fallback: just a link
+    if (videoExts.includes(ext)) {
+        const video = document.createElement("video");
+        video.src = url;
+        video.controls = true;
+        video.style.maxWidth = "100%";
+        if (width) video.width = width;
+        if (height) video.height = height;
+        return video;
+    }
+
+    if (audioExts.includes(ext)) {
+        const audio = document.createElement("audio");
+        audio.src = url;
+        audio.controls = true;
+        audio.style.display = "block";
+        return audio;
+    }
+
+    if (pdfExts.includes(ext)) {
+        if (!xorname) {
+            const fallback = document.createElement("a");
+            fallback.href = url;
+            fallback.textContent = "📄 Download PDF";
+            fallback.target = "_blank";
+            fallback.rel = "noopener noreferrer";
+            return fallback;
+        }
+
+        const viewLink = document.createElement("a");
+        viewLink.href = chrome.runtime.getURL(
+            `viewer.html?xorname=${encodeURIComponent(xorname)}&ext=${ext}`
+        );
+        viewLink.textContent = "🔎 View PDF securely";
+        viewLink.target = "_blank";
+        viewLink.rel = "noopener noreferrer";
+        return viewLink;
+    }
+
+    // Fallback: simple download link
     const link = document.createElement("a");
     link.href = url;
-    link.textContent = `Download ${ext} from SafeBox`;
+    link.textContent = `Download ${ext} from Autonomi`;
     link.target = "_blank";
     return link;
 }
@@ -119,16 +163,30 @@ async function replaceAutonomiCodesInTextNodes() {
                 continue;
             }
 
-            // create spinner element as placeholder
+            // For PDFs: skip downloading, create link immediately
+            if (parsed.ext === "pdf") {
+                const link = createElementForFile({
+                    xorname: parsed.xorname,
+                    ext: parsed.ext,
+                    url: "", // no direct URL needed for viewer link
+                    width: parsed.width,
+                    height: parsed.height,
+                });
+                fragment.appendChild(link);
+                lastIndex = index + matchedText.length;
+                continue;
+            }
+
+            // For other file types, show spinner then download & replace
             const spinner = document.createElement("span");
             spinner.className = "autonomi-spinner";
             fragment.appendChild(spinner);
 
-            // async fetch + replace spinner when loaded
             downloadFileData(parsed).then(({ response }) => {
                 const replacement =
                     response && response.success && response.url
                         ? createElementForFile({
+                              xorname: parsed.xorname,
                               ext: parsed.ext,
                               url: response.url,
                               width: parsed.width,
