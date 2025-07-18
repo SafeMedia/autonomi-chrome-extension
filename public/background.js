@@ -150,9 +150,9 @@ function initWebSocket() {
 
             let wsUrl = null;
             if (selected === "endpoints") {
-                const urls = (res.endpointUrls || ["antsnest.site"]).flatMap(
-                    (domain) => [`wss://ws.${domain}`]
-                );
+                const urls = (
+                    res.endpointUrls || ["antsnest.site", "safemedia.com"]
+                ).flatMap((domain) => [`wss://ws.${domain}`]);
                 wsUrl = await findFirstWorkingWebSocket(urls);
                 if (!wsUrl) {
                     notifyUser(

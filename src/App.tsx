@@ -105,24 +105,30 @@ function App() {
     }, [selectedOption, localPort]);
 
     async function getBestRemoteDomain(): Promise<string | null> {
-        console.log("urls:", urls);
         if (!urls || urls.length === 0) return null;
 
         for (const baseDomain of urls) {
             const httpsUrl = `https://anttp.${baseDomain}`;
 
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 5000); // 5 seconds
+
             try {
                 const response = await fetch(`${httpsUrl}/`, {
                     method: "HEAD",
                     mode: "cors",
+                    signal: controller.signal,
                 });
+
+                clearTimeout(timeout);
 
                 if (response.ok || response.status === 404) {
                     return httpsUrl;
                 }
             } catch (err) {
                 console.warn(`Failed to reach ${httpsUrl}`, err);
-                continue;
+            } finally {
+                clearTimeout(timeout); // ensure it’s cleared even if error
             }
         }
 
