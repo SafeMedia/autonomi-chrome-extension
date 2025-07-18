@@ -107,6 +107,22 @@ function displayUploadError(message) {
     }
 }
 
+async function findWorkingWebSocketWithRetries(
+    urls,
+    maxWaitMs = 30000,
+    intervalMs = 4000
+) {
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < maxWaitMs) {
+        const wsUrl = await findFirstWorkingWebSocket(urls);
+        if (wsUrl) return wsUrl;
+        // wait before retrying
+        await new Promise((r) => setTimeout(r, intervalMs));
+    }
+    return null;
+}
+
 async function findFirstWorkingWebSocket(urls) {
     const tryConnect = (url) =>
         new Promise((resolve, reject) => {
@@ -175,7 +191,11 @@ function initWebSocket() {
                 const urls = (
                     res.endpointUrls || ["antsnest.site", "safemedia.com"]
                 ).flatMap((domain) => [`wss://ws.${domain}`]);
-                wsUrl = await findFirstWorkingWebSocket(urls);
+                wsUrl = await findWorkingWebSocketWithRetries(
+                    urls,
+                    30000,
+                    4000
+                );
                 if (!wsUrl) {
                     notifyUser(
                         "Endpoint Error",
