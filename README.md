@@ -15,6 +15,7 @@ You can read the documentation here: [https://safemedia.com](https://safemedia.c
 - [Search Bar](#search-bar)
 - [Omnibox](#omnibox)
 - [Websockets](#websockets)
+- [Shortcodes](#shortcodes)
 - [Developers](#developers)
 - [Contribute](#contribute)
 
@@ -234,6 +235,22 @@ The local client has websockets built in. It allow the communication between web
 Having websockets allow normal clearnet webpages to request content from the Autonomi network. This allows certain features like adding Autonomi functionality to forms & buttons. It also allows the ability to replace Autonomi shortcodes with the actual content.
 
 Uploads via this method are planned to be re-enabled soon.
+
+## Shortcodes
+
+### What Are Shortcodes?
+
+Shortcodes are a specific string that can be placed anywhere on a clearnet website. You can even put them in your social media posts. Users that are using the extension will see the actual media that the shortcodes point to.
+
+## Structure of a shortcode
+
+The structure of a shortcode is:
+
+autocode,91d16e58e9164bccd29a8fd8d25218a61d8253b51c26119791b2633ff4f6b309/start-a-node.png,png,800,500
+
+When detected it will be replaced with the content. You can change the url, file extension, width and height properties.
+
+If you are currently using the extension, the shortcode above will be replaced with an image.
 
 ## Developers
 
