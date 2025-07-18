@@ -244,7 +244,11 @@ Shortcodes are a specific string that can be placed anywhere on a clearnet websi
 
 ## Structure of a shortcode
 
-The structure of a shortcode is:
+The structure of a shortcode is as follows (remove the brackets surrouding 'autocode' to use:
+
+<autocode>,91d16e58e9164bccd29a8fd8d25218a61d8253b51c26119791b2633ff4f6b309/start-a-node.png,png,800,500
+
+here is the code without brackets:
 
 autocode,91d16e58e9164bccd29a8fd8d25218a61d8253b51c26119791b2633ff4f6b309/start-a-node.png,png,800,500
 
