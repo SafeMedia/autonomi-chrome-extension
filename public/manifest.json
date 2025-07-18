@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Autonomi Extension",
-    "version": "0.1.3",
+    "version": "0.1.4",
     "description": "The Autonomi Extension",
     "action": {
         "default_popup": "index.html"
@@ -48,6 +48,11 @@
             ],
             "js": ["inject-endpoint.js"],
             "run_at": "document_idle"
+        },
+        {
+            "matches": ["<all_urls>"],
+            "js": ["shortcodes.js"],
+            "run_at": "document_idle"
         }
     ],
     "host_permissions": [
@@ -79,7 +84,8 @@
                 "inject.js",
                 "inject-endpoint.html",
                 "inject-endpoint.js",
-                "upload.html"
+                "upload.html",
+                "shortcodes.js"
             ],
             "matches": ["<all_urls>"]
         }

@@ -1,7 +1,7 @@
 const SAFE_PATH_REGEX = /^[a-f0-9]{64}(\/[\w\-._~:@!$&'()*+,;=]+)*$/i;
 
-function isValidSafePath(input) {
-    return SAFE_PATH_REGEX.test(input) && !input.includes("..");
+function isValidSafePath(xorname) {
+    return /^[a-f0-9]{64}(\/[\w\-._~:@!$&'()*+,;=]*)*\/?$/i.test(xorname);
 }
 
 const pendingUploads = new Map();
@@ -131,6 +131,28 @@ async function findFirstWorkingWebSocket(urls) {
     } catch {
         return null;
     }
+}
+
+function downloadFileAsDataUrl(xorname, sendResponse) {
+    if (!socketReady || socket.readyState !== WebSocket.OPEN) {
+        ensureSocketConnected();
+        setTimeout(() => downloadFileAsDataUrl(xorname, sendResponse), 500);
+        return;
+    }
+
+    // Save the callback
+    pendingDownloads.set(xorname, (response) => {
+        if (response.success && response.base64 && response.mimeType) {
+            const dataUrl = `data:${response.mimeType};base64,${response.base64}`;
+            sendResponse({ success: true, url: dataUrl });
+        } else {
+            sendResponse({ success: false, error: "Failed to get file data" });
+        }
+    });
+
+    // Send raw xorname as string (NOT JSON)
+    console.log("[BG] Sending raw xorname over WebSocket:", xorname);
+    socket.send(xorname);
 }
 
 function initWebSocket() {
@@ -299,6 +321,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 ensureSocketConnected();
             }
             return true;
+        }
+
+        if (
+            request.action === "triggerSafeBoxClientDownloadDataUrl" &&
+            isValidSafePath(request.xorname)
+        ) {
+            console.log(
+                "[BG] Triggering downloadFileAsDataUrl for:",
+                request.xorname
+            );
+            downloadFileAsDataUrl(request.xorname, sendResponse);
+            return true; // async response
         }
 
         if (
