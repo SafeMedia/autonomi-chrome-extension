@@ -5,8 +5,9 @@ import "./tailwind.css";
 function Viewer() {
     const [fileUrl, setFileUrl] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const params = new URLSearchParams(window.location.search);
+    const [fallback, setFallback] = useState(false);
 
+    const params = new URLSearchParams(window.location.search);
     const xorname = params.get("xorname");
     const ext = params.get("ext")?.toLowerCase();
 
@@ -33,10 +34,9 @@ function Viewer() {
                 if (response?.success && response?.url) {
                     const url = response.url;
 
-                    // if url is a base64 data URL, convert to Blob URL
+                    // convert base64 to blob URL if needed
                     if (url.startsWith("data:")) {
                         try {
-                            // extract base64 string
                             const base64Index = url.indexOf("base64,");
                             if (base64Index === -1)
                                 throw new Error("Invalid base64 data URL");
@@ -44,7 +44,6 @@ function Viewer() {
                             const mimeType = url.substring(5, base64Index - 1);
                             const base64Data = url.substring(base64Index + 7);
 
-                            // decode base64 to binary
                             const byteCharacters = atob(base64Data);
                             const byteNumbers = new Array(
                                 byteCharacters.length
@@ -54,7 +53,6 @@ function Viewer() {
                             }
                             const byteArray = new Uint8Array(byteNumbers);
 
-                            // create blob and blob URL
                             const blob = new Blob([byteArray], {
                                 type: mimeType,
                             });
@@ -65,16 +63,14 @@ function Viewer() {
                             setError("Failed to process base64 file: " + e);
                         }
                     } else {
-                        // normal URL, just use it
                         setFileUrl(url);
                     }
                 } else {
-                    setError("Failed to load file.");
+                    setError("Failed to load file. Please refresh page.");
                 }
             }
         );
 
-        // cleanup blob URL on unmount or xorname change
         return () => {
             if (fileUrl && fileUrl.startsWith("blob:")) {
                 URL.revokeObjectURL(fileUrl);
@@ -82,12 +78,38 @@ function Viewer() {
         };
     }, [xorname]);
 
+    const handleLoadError = () => {
+        setFallback(true);
+    };
+
     if (error) {
         return <div className="p-4 text-red-600">{error}</div>;
     }
 
     if (!fileUrl) {
-        return <div className="p-4">Loading...</div>;
+        return (
+            <div className="flex items-center justify-center h-screen">
+                <div className="w-12 h-12 border-4 border-gray-300 border-t-blue-500 rounded-full animate-spin" />
+            </div>
+        );
+    }
+
+    if (fallback) {
+        return (
+            <div className="p-4">
+                <p className="mb-2 text-yellow-600">
+                    ⚠️ Cannot load this file inline (likely blocked by browser).
+                </p>
+                <a
+                    href={fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 underline"
+                >
+                    👉 Open file in new tab
+                </a>
+            </div>
+        );
     }
 
     const commonStyle = {
@@ -98,20 +120,46 @@ function Viewer() {
 
     if (ext === "pdf") {
         return (
-            <embed src={fileUrl} type="application/pdf" style={commonStyle} />
+            <embed
+                src={fileUrl}
+                type="application/pdf"
+                style={commonStyle}
+                onError={handleLoadError}
+            />
         );
     }
 
     if (["mp4", "webm", "ogg"].includes(ext || "")) {
-        return <video src={fileUrl} controls style={commonStyle} />;
+        return (
+            <video
+                src={fileUrl}
+                controls
+                style={commonStyle}
+                onError={handleLoadError}
+            />
+        );
     }
 
     if (["mp3", "wav", "ogg"].includes(ext || "")) {
-        return <audio src={fileUrl} controls style={{ width: "100%" }} />;
+        return (
+            <audio
+                src={fileUrl}
+                controls
+                style={{ width: "100%" }}
+                onError={handleLoadError}
+            />
+        );
     }
 
     if (["png", "jpg", "jpeg", "gif", "webp"].includes(ext || "")) {
-        return <img src={fileUrl} alt="Media" style={commonStyle} />;
+        return (
+            <img
+                src={fileUrl}
+                alt="Media"
+                style={commonStyle}
+                onError={handleLoadError}
+            />
+        );
     }
 
     return (

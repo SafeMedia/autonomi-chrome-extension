@@ -11,6 +11,26 @@ function parseAutonomiCode(code) {
     };
 }
 
+function dataUrlToBlobUrl(dataUrl, mimeType) {
+    try {
+        const parts = dataUrl.split(",");
+        if (parts.length < 2 || !parts[1]) throw new Error("Invalid data URL");
+        const binary = atob(parts[1]);
+        const array = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+            array[i] = binary.charCodeAt(i);
+        }
+        const blob = new Blob([array], { type: mimeType });
+        return URL.createObjectURL(blob);
+    } catch (err) {
+        console.error(
+            "❌ Failed to convert data URL to Blob URL:",
+            err.message
+        );
+        return null;
+    }
+}
+
 function createElementForFile({ xorname = null, ext, url, width, height }) {
     const imgExts = ["jpg", "jpeg", "png", "gif", "webp"];
     const videoExts = ["mp4", "webm", "ogg"];
@@ -19,54 +39,70 @@ function createElementForFile({ xorname = null, ext, url, width, height }) {
 
     ext = ext.toLowerCase();
 
+    function createFallbackLink() {
+        const viewerUrl = xorname
+            ? chrome.runtime.getURL(
+                  `viewer.html?xorname=${encodeURIComponent(
+                      xorname
+                  )}&ext=${ext}`
+              )
+            : url;
+
+        const link = document.createElement("a");
+        link.href = viewerUrl;
+        link.textContent = `📄 Open ${ext.toUpperCase()} in viewer`;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        return link;
+    }
+
+    function attachErrorHandler(el) {
+        el.onerror = () => {
+            el.replaceWith(createFallbackLink());
+        };
+        return el;
+    }
+
     if (imgExts.includes(ext)) {
+        const mime = `image/${ext === "jpg" ? "jpeg" : ext}`;
+        const blobUrl = dataUrlToBlobUrl(url, mime);
+        if (!blobUrl) return createFallbackLink();
         const img = document.createElement("img");
-        img.src = url;
+        img.src = blobUrl;
         img.alt = "Loaded from SafeBox";
         if (width) img.width = width;
         if (height) img.height = height;
-        return img;
+        return attachErrorHandler(img);
     }
 
     if (videoExts.includes(ext)) {
+        const mime = `video/${ext}`;
+        const blobUrl = dataUrlToBlobUrl(url, mime);
+        if (!blobUrl) return createFallbackLink();
         const video = document.createElement("video");
-        video.src = url;
+        video.src = blobUrl;
         video.controls = true;
         video.style.maxWidth = "100%";
         if (width) video.width = width;
         if (height) video.height = height;
-        return video;
+        return attachErrorHandler(video);
     }
 
     if (audioExts.includes(ext)) {
+        const mime = `audio/${ext}`;
+        const blobUrl = dataUrlToBlobUrl(url, mime);
+        if (!blobUrl) return createFallbackLink();
         const audio = document.createElement("audio");
-        audio.src = url;
+        audio.src = blobUrl;
         audio.controls = true;
         audio.style.display = "block";
-        return audio;
+        return attachErrorHandler(audio);
     }
 
     if (pdfExts.includes(ext)) {
-        if (!xorname) {
-            const fallback = document.createElement("a");
-            fallback.href = url;
-            fallback.textContent = "📄 Download PDF";
-            fallback.target = "_blank";
-            fallback.rel = "noopener noreferrer";
-            return fallback;
-        }
-
-        const viewLink = document.createElement("a");
-        viewLink.href = chrome.runtime.getURL(
-            `viewer.html?xorname=${encodeURIComponent(xorname)}&ext=${ext}`
-        );
-        viewLink.textContent = "🔎 View PDF securely";
-        viewLink.target = "_blank";
-        viewLink.rel = "noopener noreferrer";
-        return viewLink;
+        return createFallbackLink();
     }
 
-    // Fallback: simple download link
     const link = document.createElement("a");
     link.href = url;
     link.textContent = `Download ${ext} from Autonomi`;
@@ -97,9 +133,8 @@ function downloadFileData(parsed) {
     });
 }
 
-// Inject spinner styles once
 function injectSpinnerStyles() {
-    if (document.getElementById("autonomi-spinner-style")) return; // already injected
+    if (document.getElementById("autonomi-spinner-style")) return;
 
     const style = document.createElement("style");
     style.id = "autonomi-spinner-style";
@@ -115,7 +150,6 @@ function injectSpinnerStyles() {
   vertical-align: middle;
   margin: 0 4px;
 }
-
 @keyframes autonomi-spin {
   to { transform: rotate(360deg); }
 }
@@ -142,33 +176,29 @@ async function replaceAutonomiCodesInTextNodes() {
         if (!regex.test(text)) continue;
 
         const fragment = document.createDocumentFragment();
-
         let lastIndex = 0;
-        regex.lastIndex = 0; // Reset regex state before use
+        regex.lastIndex = 0;
+
         for (const match of text.matchAll(regex)) {
             const matchedText = match[0];
             const index = match.index;
 
-            // add text before the match
             fragment.appendChild(
                 document.createTextNode(text.substring(lastIndex, index))
             );
 
-            // parse shortcode
             const parsed = parseAutonomiCode(matchedText);
             if (!parsed) {
-                // if parsing failed, just add the original text
                 fragment.appendChild(document.createTextNode(matchedText));
                 lastIndex = index + matchedText.length;
                 continue;
             }
 
-            // For PDFs: skip downloading, create link immediately
             if (parsed.ext === "pdf") {
                 const link = createElementForFile({
                     xorname: parsed.xorname,
                     ext: parsed.ext,
-                    url: "", // no direct URL needed for viewer link
+                    url: "",
                     width: parsed.width,
                     height: parsed.height,
                 });
@@ -177,7 +207,6 @@ async function replaceAutonomiCodesInTextNodes() {
                 continue;
             }
 
-            // For other file types, show spinner then download & replace
             const spinner = document.createElement("span");
             spinner.className = "autonomi-spinner";
             fragment.appendChild(spinner);
@@ -192,9 +221,13 @@ async function replaceAutonomiCodesInTextNodes() {
                               width: parsed.width,
                               height: parsed.height,
                           })
-                        : document.createTextNode(
-                              `[Failed to load: ${parsed.xorname}]`
-                          );
+                        : createElementForFile({
+                              xorname: parsed.xorname,
+                              ext: parsed.ext,
+                              url: "", // fallback viewer doesn't use this
+                              width: parsed.width,
+                              height: parsed.height,
+                          });
 
                 spinner.replaceWith(replacement);
             });
@@ -202,12 +235,10 @@ async function replaceAutonomiCodesInTextNodes() {
             lastIndex = index + matchedText.length;
         }
 
-        // add any remaining text after the last match
         fragment.appendChild(
             document.createTextNode(text.substring(lastIndex))
         );
 
-        // replace original text node with the new fragment
         node.parentNode.replaceChild(fragment, node);
     }
 }
@@ -217,15 +248,13 @@ const observer = new MutationObserver(() => {
     clearTimeout(debounceTimeout);
     debounceTimeout = setTimeout(() => {
         replaceAutonomiCodesInTextNodes();
-    }, 200); // wait 200ms after last mutation batch
+    }, 200);
 });
 
-// start observing document.body for added/removed nodes and subtree changes
 observer.observe(document.body, {
     childList: true,
     subtree: true,
     characterData: true,
 });
 
-// run once immediately to process existing content
 replaceAutonomiCodesInTextNodes();

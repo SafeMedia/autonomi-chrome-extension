@@ -27,7 +27,7 @@ function handleUploadChunk(request, senderId, sendResponse) {
         }/${totalChunks} — Upload ID: ${uploadId}`
     );
 
-    // Only register callback and timeout for the first chunk
+    // only register callback and timeout for the first chunk
     if (chunkIndex === 0) {
         pendingUploads.set(uploadId, sendResponse);
 
@@ -43,7 +43,7 @@ function handleUploadChunk(request, senderId, sendResponse) {
             }
         }, 180000); // 3 minutes
     } else {
-        // For all other chunks, respond immediately
+        // for all other chunks, respond immediately
         sendResponse({ success: true });
     }
 
@@ -150,14 +150,48 @@ async function findFirstWorkingWebSocket(urls) {
 }
 
 function downloadFileAsDataUrl(xorname, sendResponse) {
-    if (!socketReady || socket.readyState !== WebSocket.OPEN) {
-        ensureSocketConnected();
-        setTimeout(() => downloadFileAsDataUrl(xorname, sendResponse), 500);
+    let responded = false;
+
+    if (!xorname || typeof xorname !== "string") {
+        sendResponse({ success: false, error: "Invalid xorname" });
         return;
     }
 
-    // Save the callback
+    // safety timeout to avoid message channel closing with no response
+    const fallbackTimeout = setTimeout(() => {
+        if (!responded) {
+            console.error("⏱️ downloadFileAsDataUrl timeout for", xorname);
+            responded = true;
+            sendResponse({
+                success: false,
+                error: "Timeout waiting for socket",
+            });
+        }
+    }, 8000); // 8 seconds fallback
+
+    if (!socketReady || socket.readyState !== WebSocket.OPEN) {
+        ensureSocketConnected();
+        setTimeout(() => {
+            if (!responded) {
+                downloadFileAsDataUrl(xorname, (res) => {
+                    if (!responded) {
+                        responded = true;
+                        clearTimeout(fallbackTimeout);
+                        sendResponse(res);
+                    }
+                });
+            }
+        }, 500);
+        return;
+    }
+
+    // save the callback
     pendingDownloads.set(xorname, (response) => {
+        if (!responded) {
+            responded = true;
+            clearTimeout(fallbackTimeout);
+        }
+
         if (response.success && response.base64 && response.mimeType) {
             const dataUrl = `data:${response.mimeType};base64,${response.base64}`;
             sendResponse({ success: true, url: dataUrl });
@@ -166,7 +200,6 @@ function downloadFileAsDataUrl(xorname, sendResponse) {
         }
     });
 
-    // Send raw xorname as string (NOT JSON)
     console.log("[BG] Sending raw xorname over WebSocket:", xorname);
     socket.send(xorname);
 }
@@ -348,7 +381,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             isValidSafePath(request.xorname)
         ) {
             console.log(
-                "[BG] Triggering downloadFileAsDataUrl for:",
+                "Triggering downloadFileAsDataUrl for:",
                 request.xorname
             );
             downloadFileAsDataUrl(request.xorname, sendResponse);
