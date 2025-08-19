@@ -313,6 +313,14 @@ You can find this ID on the extensions page just underneath the name of the exte
 
 Ensure that you are serving your test application either on a website, or as localhost via an engine like 'npx serve'. This is because just right clicking and opening a html page in a browser will not work for this due to stricter cors restrictions by chrome.
 
-## Contribute
+
+---
+
+## Other Products
 
 Make/find an issue & create a PR - All contributions appreciated!
+
+https://github.com/SafeMedia/safebox-client
+
+https://github.com/SafeMedia/safebox-server
+
