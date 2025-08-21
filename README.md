@@ -5,6 +5,16 @@
 
 You can read the documentation here: [https://safemedia.com](https://safemedia.com)
 
+---
+
+## Other Products
+
+https://github.com/SafeMedia/safebox-server
+
+https://github.com/SafeMedia/autonomi-chrome-extension
+
+---
+
 
 ## Contents:
 
@@ -316,7 +326,7 @@ Ensure that you are serving your test application either on a website, or as loc
 
 ---
 
-## Other Products
+## Contribute
 
 Make/find an issue & create a PR - All contributions appreciated!
 
