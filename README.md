@@ -11,7 +11,7 @@ You can read the documentation here: [https://safemedia.com](https://safemedia.c
 
 https://github.com/SafeMedia/safebox-server
 
-https://github.com/SafeMedia/autonomi-chrome-extension
+https://github.com/SafeMedia/safebox-client
 
 ---
 
